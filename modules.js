@@ -761,5 +761,5 @@ function serverHendler(req, res) {
 
 process.nextTick(function() {
 	http.createServer(serverHendler).listen(config.port, "127.0.0.1");
-	console.log('Server running at http://127.0.0.1:'+(port)+'/');
+	console.log('Server running at http://127.0.0.1:'+(config.port)+'/');
 });
