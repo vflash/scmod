@@ -354,26 +354,15 @@ var smod = function(start_url, end_compite) {
 };
 
 
+
 //write('http://zz7a.com/js/moon/moon.json', func)
-function write(url, end) {
+function modscript(url, end) {
 	smod(url, function(status, global_modules, global_files) {
-		log('end');
 
 		if (status !== true) {
+			if (typeof end == 'function') end();
 			return;
 		};
-
-
-		/*
-		log('var __MODULES = {};');
-		global_modules.forEach(function(x) {
-			log('__MODULES['+(x.id)+'] = {}');
-		});
-		*/
-		
-		//log(global_modules)
-
-
 
 		var DEPEND = {};
 		var MDNAME = {};
@@ -381,14 +370,9 @@ function write(url, end) {
 
 		global_modules.forEach(function(x) {
 			MDS[x.id] = {};
-			
-
-			//console.log(x);
 
 			var dep = [], nms = [], de = x.de, v, i;
-			//log('- ', x)
-			//log('> ', de)
-			
+
 			for (i in de) {
 				if (v = de[i]) {
 					nms.push(i);
@@ -443,31 +427,124 @@ function write(url, end) {
 			+'return ' + jsmin("", String(__MODULE).trim(), 2).trim()
 			+ '})();\n'
 		;
-		
-		//jscode += jsmin("", String(__MODULE).trim(), 2).trim() + '\n';
-		
-		
-		if (files.length) {
-			jscode += 'document.write('+JSON.stringify('<script src="' + files.join('"></script><script src="') + '"></script>')+');\n'
-			jscode += '/*\n'+files.join('\n')+'\n*/\n';
-		};
-		
-		
-		
-		
-		
 
 
-		//console.log(jscode)
 		if (typeof end == 'function') {
-			end(true, jscode);
+			end(true, jscode, files);
 		};
 		
 	});
 };
 
 
-//smpack
+function write(url, end) {
+	modscript(url, function(status, code, files) {
+		if (files.length) {
+			code += 'document.write('+JSON.stringify('<script src="' + files.join('"></script><script src="') + '"></script>')+');\n'
+			code += '/*\n'+files.join('\n')+'\n*/\n';
+		};
+		
+		if (typeof end == 'function') {
+			end(true, code);
+		};
+	});
+};
+
+
+function pack(url, req, res) {
+	var files;
+
+	var prx = true;
+	var file_index = -1, file;
+
+	var xreq = {
+		headers: {'User-Agent': (req.headers||false)['User-Agent']}
+	};
+
+	var xres = {
+		writeHead: function(status) {
+			if (status === 200) return;
+
+			prx = false;
+		},
+
+		write: function(chunk) {
+			if (prx) res.write(chunk);
+		},
+
+		end: function() {
+			next();
+		}
+	};
+
+
+	modscript(url, function(status, code, _files) {
+		files = _files;
+		
+		if (status !== true) {
+			res.writeHead(404, {
+				'content-type': 'application/x-javascript; charset=UTF-8'
+			});
+
+			res.end('//404');
+			return;
+		};
+
+
+		res.writeHead(200, {
+			'content-type': 'application/x-javascript; charset=UTF-8'
+		});
+
+		res.write(code);
+
+		next();
+	});
+
+	function next() {
+		var i;
+
+		do {
+			i = ++file_index;
+			if (i >= files.length || !files.length) {
+				complite();
+				return;
+			};
+
+			file = files[i];
+		} while(!file);
+
+		
+
+		var q = URL.parse(file, true), qm;
+
+		if (String(q.pathname).indexOf('/file/') === 0) {
+			qm = String(q.path).match(/\/file\/(\d+)\/-([^\/]*)\/(https?)\/(.+)/);
+			/*
+			qm[1] - module ID
+			qm[2] - module vars
+			qm[3] - src protocol
+			qm[4] - src
+			*/
+
+			res.write('\n\n/* url: http://' + qm[4] + ' */\n');
+
+			prox('http://' + qm[4], xreq, xres, false
+				, '__MODULE('+qm[1]+', function(global,module'+(qm[2] ? ','+qm[2] : '')+'){\'use strict\';'
+				, '\nreturn [global,module'+(qm[2] ? ','+qm[2] : '')+']});'
+			);
+
+		} else {
+			next();
+		};
+	};
+
+	function complite() {
+		res.end();
+	};
+};
+
+
+
 
 
 function __MODULE(id, modfunc) {
@@ -566,7 +643,7 @@ return module
 var URL = require('url');
 var http = require('http');
 
-function prox(url, svreq, svres, xA, xB) {
+function prox(url, svreq, svres, UTFBOM, xA, xB) {
 	var q = URL.parse(url, true), x;
 
 	console.log('prox js', url);
@@ -574,10 +651,7 @@ function prox(url, svreq, svres, xA, xB) {
 	http.Agent.defaultMaxSockets = 1;
 	http.globalAgent.maxSockets = 2;
 
-
 	var headers = {host: String(q.host)};
-	
-	
 
 	//console.log(svreq.headers);
 	if (x = svreq.headers['if-modified-since']) {
@@ -592,13 +666,6 @@ function prox(url, svreq, svres, xA, xB) {
 	if (x = svreq.headers['referer']) {
 		headers['Referer'] = x;
 	};
-
-	if (x = svreq.headers['dnt']) {
-		headers['DNT'] = x;
-	};
-
-	//headers['Connection'] = 'close'; //keep-alive
-
 
 	http.get(
 		{ 
@@ -653,7 +720,7 @@ function prox(url, svreq, svres, xA, xB) {
 					first = false;
 
 					if (chunk[0] == 0xEF && chunk[1] == 0xBB && chunk[2] == 0xBF ) {
-						svres.write(chunk.slice(0, 3));
+						if (UTFBOM) svres.write(chunk.slice(0, 3));
 						chunk = chunk.slice(3);
 					};
 
@@ -664,7 +731,8 @@ function prox(url, svreq, svres, xA, xB) {
 			});
 
 			response.on('end', function() {
-				svres.end(xB+'            ');
+				svres.write(xB);
+				svres.end();
 			}); 
 		}
 	).on('error', function(e) {
@@ -700,7 +768,7 @@ function serverHendler(req, res) {
 		//console.log(qm);
 
 
-		prox('http://' + qm[4], req, res
+		prox('http://' + qm[4], req, res, true
 			, '__MODULE('+qm[1]+', function(global,module'+(qm[2] ? ','+qm[2] : '')+'){\'use strict\';'
 			, '\nreturn [global,module'+(qm[2] ? ','+qm[2] : '')+']});'
 			//, '\nreturn module});'
@@ -713,7 +781,7 @@ function serverHendler(req, res) {
 		return;
 	};
 
-	if (q.pathname === '/write') {
+	if (q.pathname === '/write' || q.pathname === '/pack') {
 		var src = q.query.src || '';
 		if (src.indexOf('http://') === 0) {
 			src = normalizeURL(src);
@@ -723,8 +791,21 @@ function serverHendler(req, res) {
 		} else {
 			src = false;
 		};
+
+		if (!src) {
+			res.writeHead(404
+				, {
+					'Content-Type': 'application/x-javascript; charset=UTF-8',
+					'Cache-Control': 'no-store, no-cache, must-revalidate',
+					'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+				}
+			);
+
+			res.end('// error');
+			return;
+		};
 		
-		if (src) {
+		if (q.pathname === '/write') {
 			write(src, function(status, code) {
 				res.writeHead(200
 					, {
@@ -737,23 +818,17 @@ function serverHendler(req, res) {
 				res.end(code);
 			});
 
-		} else {
-			res.writeHead(404
-				, {
-					'Content-Type': 'application/x-javascript; charset=UTF-8',
-					'Cache-Control': 'no-store, no-cache, must-revalidate',
-					'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
-				}
-			);
-
-			res.end('// error');
+			return;
 		};
 		
-		//console.log(src);
-		//req.headers['referer']
-		//var xurl = URL.parse(String(req.headers['referer']))
-		//formatURL(xurl, src) {
-		
+		if (q.pathname === '/pack') {
+			pack(src, req, res);
+			return;
+		};
+
+		res.writeHead(500);
+		res.end();
+
 		return;
 	};
 };
