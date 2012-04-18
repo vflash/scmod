@@ -265,8 +265,10 @@ var smod = function(start_url, end_compite) {
 			
 
 			// log(xmod.waiting);
+			if (!xmod.waiting) console.log(xmod);
 			while(x = xmod.waiting.pop()) x();
 			delete(xmod.waiting);
+
 
 			xmod.loaded = true;
 			end(true, xmod.id);
@@ -371,7 +373,15 @@ function modscript(url, end) {
 		global_modules.forEach(function(x) {
 			MDS[x.id] = {};
 
-			var dep = [], nms = [], de = x.de, v, i;
+			//var dep = [], nms = [], de = x.de, v, i;
+			var u
+			, nms = [x.alias ? String(x.alias) : '-']
+			, de = x.de
+			, dep = []
+			, v, i
+			;
+
+			
 
 			for (i in de) {
 				if (v = de[i]) {
@@ -382,8 +392,9 @@ function modscript(url, end) {
 
 			if (dep.length) {
 				DEPEND[x.id] = dep;
-				MDNAME[x.id] = nms;
 			};
+
+			MDNAME[x.id] = nms;
 		});
 
 
@@ -400,7 +411,7 @@ function modscript(url, end) {
 		;
 
 		while(x = a[i++]) {
-			var url = 'http://'+String(config.server_host)+'/file/'+ x.moduleID+'/-';
+			var url = 'http://'+String(config.server_host)+'/file/'+ x.moduleID+'/';
 
 			if (v = MDNAME[x.moduleID]) {
 				url += '' + v.map(encodeURIComponent).join(',');
@@ -518,7 +529,8 @@ function pack(url, req, res) {
 		var q = URL.parse(file, true), qm;
 
 		if (String(q.pathname).indexOf('/file/') === 0) {
-			qm = String(q.path).match(/\/file\/(\d+)\/-([^\/]*)\/(https?)\/(.+)/);
+			//qm = String(q.path).match(/\/file\/(\d+)\/-([^\/]*)\/(https?)\/(.+)/);
+			qm = String(q.path).match(/\/file\/(\d+)\/([^\/]*)\/(https?)\/(.+)/);
 			/*
 			qm[1] - module ID
 			qm[2] - module vars
@@ -526,11 +538,20 @@ function pack(url, req, res) {
 			qm[4] - src
 			*/
 
+			if (!qm) {
+				res.write('\n\n/* url: http://' + qm[4] + ' -- error -- */\n');
+				return next();
+			};
+
+
+			if (!qm[2]) qm[2] = 'module';
+			if (qm[2][0] === '-') qm[2] = qm[2].replace('-', 'module');
+
 			res.write('\n\n/* url: http://' + qm[4] + ' */\n');
 
 			prox('http://' + qm[4], xreq, xres, false
-				, '__MODULE('+qm[1]+', function(global,module'+(qm[2] ? ','+qm[2] : '')+'){\'use strict\';'
-				, '\nreturn [global,module'+(qm[2] ? ','+qm[2] : '')+']});'
+				, '__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';'
+				, '\nreturn [global,'+qm[2]+']});'
 			);
 
 		} else {
@@ -539,6 +560,7 @@ function pack(url, req, res) {
 	};
 
 	function complite() {
+		res.write('\n\n__MODULE=null;');
 		res.end();
 	};
 };
@@ -757,7 +779,8 @@ function serverHendler(req, res) {
 
 
 	if (String(q.pathname).indexOf('/file/') === 0) {
-		qm = String(q.path).match(/\/file\/(\d+)\/-([^\/]*)\/(https?)\/(.+)/);
+		//qm = String(q.path).match(/\/file\/(\d+)\/-([^\/]*)\/(https?)\/(.+)/);
+		qm = String(q.path).match(/\/file\/(\d+)\/([^\/]+)\/(https?)\/(.+)/);
 		/*
 		qm[1] - module ID
 		qm[2] - module vars
@@ -766,11 +789,26 @@ function serverHendler(req, res) {
 		*/
 		
 		//console.log(qm);
+		
+		if (!qm) {
+			res.writeHead(404
+				, {
+					'Content-Type': 'application/x-javascript; charset=UTF-8',
+					'Cache-Control': 'no-store, no-cache, must-revalidate',
+					'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+				}
+			);
 
+			res.end('// error');
+			return;
+		};
+		
+		if (!qm[2]) qm[2] = 'module';
+		if (qm[2][0] === '-') qm[2] = qm[2].replace('-', 'module');
 
 		prox('http://' + qm[4], req, res, true
-			, '__MODULE('+qm[1]+', function(global,module'+(qm[2] ? ','+qm[2] : '')+'){\'use strict\';'
-			, '\nreturn [global,module'+(qm[2] ? ','+qm[2] : '')+']});'
+			, '__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';'
+			, '\nreturn [global,'+qm[2]+']});'
 			//, '\nreturn module});'
 		);
 
