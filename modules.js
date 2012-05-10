@@ -2,7 +2,7 @@
 
 
 var config = require('./config.js');
-var http = require('http');
+var HTTP = require('http');
 var URL = require('url');
 var PATH = require('path');
 var qs = require('querystring');
@@ -51,7 +51,7 @@ function http_query(url, end) {
 		};
 	};
 
-	var client = src.protocol === 'https:' ? https.request(query) : http.request(query);
+	var client = src.protocol === 'https:' ? https.request(query) : HTTP.request(query);
 
 	client.setTimeout(6000, err);
 	client.on("error", err);
@@ -150,6 +150,7 @@ var smod = function(start_url, end_compite) {
 	var modules = [];
 	var modulesHash = {};
 	var files = [];
+	var styles = [];
 	var stop;
 
 	function get_module(url, modstack, end) {
@@ -235,12 +236,9 @@ var smod = function(start_url, end_compite) {
 
 			//log('complit mod', url);
 
-			var u
-			, a = mod_json.files
-			, i, l, x
-			;
+			var u, a, i, l, x;
 
-			if (a) {
+			if (a = mod_json.files) {
 				for(i=0, l = a.length; i<l; i+=1) {
 					if (x = a[i]) {
 
@@ -252,6 +250,14 @@ var smod = function(start_url, end_compite) {
 							
 						});
 
+					};
+				};
+			};
+
+			if (a = mod_json.styles) {
+				for(i=0, l = a.length; i<l; i+=1) {
+					if (x = a[i]) {
+						styles.push(formatURL(xurl, x));
 					};
 				};
 			};
@@ -351,7 +357,7 @@ var smod = function(start_url, end_compite) {
 	};
 
 	get_module(start_url, [], function() {
-		end_compite(true, modules, files);
+		end_compite(true, modules, files, styles);
 	});
 };
 
@@ -359,7 +365,7 @@ var smod = function(start_url, end_compite) {
 
 //write('http://zz7a.com/js/moon/moon.json', func)
 function modscript(url, end) {
-	smod(url, function(status, global_modules, global_files) {
+	smod(url, function(status, global_modules, global_files, global_styles) {
 
 		if (status !== true) {
 			if (typeof end == 'function') end();
@@ -426,10 +432,22 @@ function modscript(url, end) {
 			files.push(url);
 		};
 		
-		
-		// '<script src=""></script>'
+		var styles = false;
+
+		if (a = global_styles) {
+			for(styles = [], i = 0; x = a[i++];) {
+				styles.push(x);
+			};
+
+			if (!styles.length) {
+				styles = false;
+			};
+		};
+
+
+			// '<script src=""></script>'
 		var jscode = '';
-		
+
 		jscode += 'var __MODULE=(function(){var global=window'
 			+',MODULES='+JSON.stringify(MDS)
 			+',DEPEND='+JSON.stringify(DEPEND)
@@ -441,7 +459,11 @@ function modscript(url, end) {
 
 
 		if (typeof end == 'function') {
-			end(true, jscode, files);
+			end(true
+				, jscode
+				, files
+				, styles
+			);
 		};
 		
 	});
@@ -449,12 +471,27 @@ function modscript(url, end) {
 
 
 function write(url, end) {
-	modscript(url, function(status, code, files) {
+	modscript(url, function(status, code, files, styles) {
 		if (files.length) {
 			code += 'document.write('+JSON.stringify('<script src="' + files.join('"></script><script src="') + '"></script>')+');\n'
 			code += '/*\n'+files.join('\n')+'\n*/\n';
 		};
-		
+
+
+		if (styles) {
+			var s = [], a, i;
+
+			for (i=0; i < styles.length; i+=30) {
+				s.push('<style>\n'
+					+ styles.slice(i, i+30).map(function(x) {return '@import url('+JSON.stringify(String(x))+')\n'}).join('')
+					+ '</style>'
+				);
+			};
+
+			code += '\ndocument.write('+JSON.stringify(s.join(''))+');\n';
+			code += '/*\n'+styles.join('\n')+'\n*/\n';
+		};
+
 		if (typeof end == 'function') {
 			end(true, code);
 		};
@@ -463,10 +500,12 @@ function write(url, end) {
 
 
 function pack(url, req, res) {
-	var files;
-
-	var prx = true;
-	var file_index = -1, file;
+	var u
+	, prx = true
+	, file_index = -1
+	, files
+	, file
+	;
 
 	var xreq = {
 		headers: {'User-Agent': (req.headers||false)['User-Agent']}
@@ -522,6 +561,7 @@ function pack(url, req, res) {
 			};
 
 			file = files[i];
+
 		} while(!file);
 
 		
@@ -663,15 +703,15 @@ return module
 
 
 var URL = require('url');
-var http = require('http');
+var HTTP = require('http');
 
 function prox(url, svreq, svres, UTFBOM, xA, xB) {
 	var q = URL.parse(url, true), x;
 
 	console.log('prox js', url);
 
-	http.Agent.defaultMaxSockets = 1;
-	http.globalAgent.maxSockets = 2;
+	HTTP.Agent.defaultMaxSockets = 1;
+	HTTP.globalAgent.maxSockets = 2;
 
 	var headers = {host: String(q.host)};
 
@@ -689,7 +729,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 		headers['Referer'] = x;
 	};
 
-	http.get(
+	HTTP.get(
 		{ 
 			headers: headers,
 			host: q.host, 
@@ -702,7 +742,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 			if (headers['set-cookie']) {
 				delete(headers['set-cookie']);
 			};
-			
+
 			if (headers['connection']) {
 				delete(headers['connection']);
 			};
@@ -809,7 +849,6 @@ function serverHendler(req, res) {
 		prox('http://' + qm[4], req, res, true
 			, '__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';'
 			, '\nreturn [global,'+qm[2]+']});'
-			//, '\nreturn module});'
 		);
 
 		return;
@@ -873,6 +912,7 @@ function serverHendler(req, res) {
 	
 
 process.nextTick(function() {
-	http.createServer(serverHendler).listen(config.port, "127.0.0.1");
+	HTTP.createServer(serverHendler).listen(config.port, "127.0.0.1");
+
 	console.log('Server running at http://127.0.0.1:'+(config.port)+'/');
 });
