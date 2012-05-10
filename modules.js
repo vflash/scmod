@@ -811,6 +811,44 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 	});
 };
 
+
+function endres(res, status) {
+	switch(status) {
+		case 400:
+			res.writeHead(400
+				, {
+					'Content-Type': 'application/x-javascript; charset=UTF-8',
+					'Cache-Control': 'no-store, no-cache, must-revalidate',
+					'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+				}
+			);
+
+			res.end('// 400 Bad Request');
+			return;
+
+		case 404:
+			res.writeHead(404
+				, {
+					'Content-Type': 'application/x-javascript; charset=UTF-8',
+					'Cache-Control': 'no-store, no-cache, must-revalidate',
+					'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+				}
+			);
+
+			res.end('// 404 Not Found');
+			return;
+	};
+};
+
+
+
+process.nextTick(function() {
+	HTTP.createServer(serverHendler).listen(config.port, "127.0.0.1");
+
+	console.log('Server running at http://127.0.0.1:'+(config.port)+'/');
+});
+
+
 function serverHendler(req, res) {
 	var q = URL.parse(req.url, true);
 	var qm;
@@ -854,12 +892,10 @@ function serverHendler(req, res) {
 		return;
 	};
 
-	if (q.pathname === '/loading') {
-		return;
-	};
 
 	if (q.pathname === '/write' || q.pathname === '/pack') {
 		var src = q.query.src || '';
+
 		if (src.indexOf('http://') === 0) {
 			src = normalizeURL(src);
 		} else
@@ -870,18 +906,9 @@ function serverHendler(req, res) {
 		};
 
 		if (!src) {
-			res.writeHead(404
-				, {
-					'Content-Type': 'application/x-javascript; charset=UTF-8',
-					'Cache-Control': 'no-store, no-cache, must-revalidate',
-					'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
-				}
-			);
-
-			res.end('// error');
-			return;
+			return endres(res, 404);
 		};
-		
+
 		if (q.pathname === '/write') {
 			write(src, function(status, code) {
 				res.writeHead(200
@@ -897,22 +924,18 @@ function serverHendler(req, res) {
 
 			return;
 		};
-		
+
 		if (q.pathname === '/pack') {
 			pack(src, req, res);
 			return;
 		};
 
-		res.writeHead(500);
-		res.end();
-
+		endres(res, 400);
 		return;
 	};
+
+
+	endres(res, 400);
 };
-	
 
-process.nextTick(function() {
-	HTTP.createServer(serverHendler).listen(config.port, "127.0.0.1");
 
-	console.log('Server running at http://127.0.0.1:'+(config.port)+'/');
-});
