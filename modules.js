@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 
 var config = require('./config.js');
@@ -122,6 +122,7 @@ function search(modules, url) {
 };
 
 function formatURL(xurl, src) {
+
 	if (src[0] == '.') {
 		return xurl.protocol + '//' + xurl.host + PATH.normalize((xurl.pathname||'/') + '/../'+src);
 	} else 
@@ -130,6 +131,10 @@ function formatURL(xurl, src) {
 	} else 
 	if (src.substr(0, 3) == '://') {
 		src = xurl.protocol + src.substr(1);
+	} else 
+	if (String(src).indexOf(':') === -1 ) {
+		
+		return xurl.protocol + '//' + xurl.host + PATH.normalize((xurl.pathname||'/') + '/../'+src);
 	};
 
 	return normalizeURL(src);
@@ -137,6 +142,13 @@ function formatURL(xurl, src) {
 
 function normalizeURL(url) {
 	var xurl = URL.parse(String(url).trim());
+	switch(xurl.protocol) {
+		case 'http:': case 'https:':
+			break;
+		default:
+			return url;
+	};
+
 
 	url = xurl.protocol+'//'+xurl.host;
 	if (xurl.pathname) url += PATH.normalize(xurl.pathname);
@@ -310,16 +322,16 @@ var smod = function(start_url, end_compite) {
 			var json, x, i, j,v;
 
 
-			data = jsmin("", String(data).trim(), 2);
-			if (data.indexOf('{')) data = data.substr(data.indexOf('{'));
-
-
 			try {
+				data = jsmin("", String(data).trim(), 2);
+				if (data.indexOf('{')) data = data.substr(data.indexOf('{'));
 				mod_json = JSON.parse(data);
+
 			} catch (e) {
 				mod_json = {error: 'invalid json'};
 			};
-			
+
+
 			if (mod_json.alias) {
 				xmod.alias = String(mod_json.alias);
 			};
@@ -331,7 +343,7 @@ var smod = function(start_url, end_compite) {
 				for (i in x) {
 					var src = x[i];
 
-					if (typeof src !== 'string') {
+					if (!src || typeof src !== 'string') {
 						//mods[i] = {id:0}; 
 						modules.push(
 							mods[i] = {id: modules.length + 1,src: false}
@@ -747,6 +759,9 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 				delete(headers['connection']);
 			};
 			
+			if (headers['content-length']) {
+				delete(headers['content-length']);
+			};
 			
 
 			//headers['content-type'] = 'application/x-javascript; charset=UTF-8';
@@ -754,7 +769,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 			if (response.statusCode != 200) {
 				svres.writeHead(response.statusCode, headers);
 
-				response.on('data', function(c){svres.write(c)});
+				//response.on('data', function(c){svres.write(c)});
 				response.on('end', function(){svres.end()});
 				return;
 			};
@@ -773,7 +788,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 			
 			
 			var first = true;
-			
+			var datastart = true;
 			//response.setEncoding('utf8');
 			
 			response.on('data', function(chunk) {
@@ -785,15 +800,27 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 						if (UTFBOM) svres.write(chunk.slice(0, 3));
 						chunk = chunk.slice(3);
 					};
-
-					svres.write(xA);
 				};
-				
-				svres.write(chunk);
+
+
+				if (chunk.length) {
+					if (datastart) {
+						datastart = false;
+						svres.write(xA);
+					};
+
+					svres.write(chunk);
+				};
 			});
 
 			response.on('end', function() {
-				svres.write(xB);
+				if (datastart) {
+					svres.write('// file null');
+				} else {
+					svres.write(xB);
+				};
+				//svres.write(xB);
+				
 				svres.end();
 			}); 
 		}
