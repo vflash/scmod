@@ -494,8 +494,8 @@ function write(url, end) {
 			var s = [], a, i;
 
 			for (i=0; i < styles.length; i+=30) {
-				s.push('<style>\n'
-					+ styles.slice(i, i+30).map(function(x) {return '@import url('+JSON.stringify(String(x))+')\n'}).join('')
+				s.push('<style type="text/css">\n'
+					+ styles.slice(i, i+30).map(function(x) {return '@import url('+JSON.stringify(String(x))+');\n'}).join('')
 					+ '</style>'
 				);
 			};
