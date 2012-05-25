@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 
 var config = require('./config.js');
@@ -251,7 +251,7 @@ var smod = function(start_url, end_compite) {
 
 			var u, a, i, l, x;
 
-			if (a = mod_json.files) {
+			if (a = mod_json.scripts || mod_json.files) {
 				for(i=0, l = a.length; i<l; i+=1) {
 					if (x = a[i]) {
 
@@ -274,6 +274,8 @@ var smod = function(start_url, end_compite) {
 					};
 				};
 			};
+
+			xmod.langs = mod_json.langs || false;
 
 			xmod.de = false;
 
@@ -394,9 +396,12 @@ function modscript(url, end) {
 		var DEPEND = {};
 		var MDNAME = {};
 		var MDS = {};
+		var langs = {};
 
 		global_modules.forEach(function(x) {
 			MDS[x.id] = {};
+
+			langs[x.id] = x.langs || false;
 
 			//var dep = [], nms = [], de = x.de, v, i;
 			var u
@@ -484,6 +489,7 @@ function modscript(url, end) {
 				, jscode
 				, files
 				, styles
+				, langs
 			);
 		};
 		
@@ -520,17 +526,21 @@ function write(url, end) {
 };
 
 
-function script_pack(url, req, res) {
+function script_pack(url, req, res, jmin, langKey) {
 	var u
 	, prx = true
 	, file_index = -1
 	, files
+	, langs
 	, file
+	, modID
 	;
 
 	var xreq = {
 		headers: {'User-Agent': (req.headers||false)['User-Agent']}
 	};
+
+	var buffer = [];
 
 	var xres = {
 		writeHead: function(status) {
@@ -540,18 +550,53 @@ function script_pack(url, req, res) {
 		},
 
 		write: function(chunk) {
-			if (prx) res.write(chunk);
+			if (jmin) {
+				if (prx) buffer.push(chunk);
+			} else {
+				if (prx) res.write(chunk);
+			};
 		},
 
 		end: function() {
+			if (jmin) {
+				var code = '', lang, x;
+
+				try {
+					code = jsmin("", buffer.join(''), 1);
+				} catch (e) {
+					res.write('jsmin error');
+				};
+
+				buffer.length = 0;
+
+				if (lang = langKey ? langs[modID] : false) {
+					
+					code = code.replace(/\/\*([^*]|\*(?=[^\/]))+\*\/|\/(\\\\|\\\/|[^\/\n])+\/|\'(\\\\|\\\'|[^\'])*'|\"(\\\\|\\\"|[^\"])*\"/g
+						, function(x) {
+							if (x.charCodeAt(0) !== 34) return x;
+
+							try {
+								var vs = lang[JSON.parse(x)] || false;
+							} catch (e) {
+								console.log('ups JSON.parse(lang)');
+								return x;
+							};
+
+							return typeof vs[langKey] === 'string' ? JSON.stringify(vs[langKey]) : x;
+						}
+					);
+				};
+
+				res.write(code);
+			};
+
+
 			next();
 		}
 	};
 
 
-	modscript(url, function(status, code, _files) {
-		files = _files;
-		
+	modscript(url, function(status, code, _files, _styles, _langs) {
 		if (status !== true) {
 			res.writeHead(404, {
 				'content-type': 'application/x-javascript; charset=UTF-8'
@@ -567,6 +612,9 @@ function script_pack(url, req, res) {
 		});
 
 		res.write(code);
+
+		files = _files;
+		langs = _langs;
 
 		next();
 	});
@@ -590,7 +638,6 @@ function script_pack(url, req, res) {
 		var q = URL.parse(file, true), qm;
 
 		if (String(q.pathname).indexOf('/file/') === 0) {
-			//qm = String(q.path).match(/\/file\/(\d+)\/-([^\/]*)\/(https?)\/(.+)/);
 			qm = String(q.path).match(/\/file\/(\d+)\/([^\/]*)\/(https?)\/(.+)/);
 			/*
 			qm[1] - module ID
@@ -607,6 +654,8 @@ function script_pack(url, req, res) {
 
 			if (!qm[2]) qm[2] = 'module';
 			if (qm[2][0] === '-') qm[2] = qm[2].replace('-', 'module');
+
+			modID = +qm[1] || 0;
 
 			res.write('\n\n/* url: http://' + qm[4] + ' */\n');
 			
@@ -836,7 +885,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 	console.log('prox ', url);
 
 	HTTP.Agent.defaultMaxSockets = 1;
-	HTTP.globalAgent.maxSockets = 2;
+	HTTP.globalAgent.maxSockets = 4;
 
 	var headers = {host: String(q.host)};
 
@@ -1048,7 +1097,7 @@ function serverHendler(req, res) {
 	};
 
 
-	if (q.pathname === '/write' || q.pathname === '/pack' || q.pathname === '/styles') {
+	if (q.pathname === '/write' || q.pathname === '/pack' || q.pathname === '/jsmin' || q.pathname === '/styles') {
 		var src = q.query.src || '';
 
 		if (src.indexOf('http://') === 0) {
@@ -1082,6 +1131,11 @@ function serverHendler(req, res) {
 
 		if (q.pathname === '/pack') {
 			script_pack(src, req, res);
+			return;
+		};
+		
+		if (q.pathname === '/jsmin') {
+			script_pack(src, req, res, true, q.query.lang ? String(q.query.lang) : false);
 			return;
 		};
 
