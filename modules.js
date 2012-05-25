@@ -31,6 +31,7 @@ jsmd.zz7a.com/dev?src=http://cc.com&path=''
 
 function http_query(url, end) {
 	var src = URL.parse(url);
+	//console.log('http_query ', url);
 	
 	var query = {
 		method:'GET',
@@ -313,7 +314,9 @@ var smod = function(start_url, end_compite) {
 
 			if (status !== true) {
 				modules_total = 0;
-				mod_json = {};
+				mod_json = {
+					error: 'not load module - ' + url,
+				};
 
 				complit(true);
 				return;
@@ -328,7 +331,11 @@ var smod = function(start_url, end_compite) {
 				mod_json = JSON.parse(data);
 
 			} catch (e) {
-				mod_json = {error: 'invalid json'};
+
+				mod_json = {
+					error: 'invalid json',
+					errmsg: String(e)
+				};
 			};
 
 
@@ -403,6 +410,8 @@ function modscript(url, end) {
 
 			for (i in de) {
 				if (v = de[i]) {
+					if (i[0] === '_') continue;
+					
 					nms.push(i);
 					dep.push(v.id);
 				};
@@ -484,11 +493,6 @@ function modscript(url, end) {
 
 function write(url, end) {
 	modscript(url, function(status, code, files, styles) {
-		if (files.length) {
-			code += 'document.write('+JSON.stringify('<script src="' + files.join('"></script><script src="') + '"></script>')+');\n'
-			code += '/*\n'+files.join('\n')+'\n*/\n';
-		};
-
 
 		if (styles) {
 			var s = [], a, i;
@@ -501,7 +505,12 @@ function write(url, end) {
 			};
 
 			code += '\ndocument.write('+JSON.stringify(s.join(''))+');\n';
-			code += '/*\n'+styles.join('\n')+'\n*/\n';
+			code += '/*\n'+styles.join('\n')+'\n*/\n\n';
+		};
+
+		if (files.length) {
+			code += 'document.write('+JSON.stringify('<script src="' + files.join('"></script><script src="') + '"></script>')+');\n'
+			code += '/*\n'+files.join('\n')+'\n*/\n';
 		};
 
 		if (typeof end == 'function') {
@@ -511,7 +520,7 @@ function write(url, end) {
 };
 
 
-function pack(url, req, res) {
+function script_pack(url, req, res) {
 	var u
 	, prx = true
 	, file_index = -1
@@ -600,8 +609,20 @@ function pack(url, req, res) {
 			if (qm[2][0] === '-') qm[2] = qm[2].replace('-', 'module');
 
 			res.write('\n\n/* url: http://' + qm[4] + ' */\n');
+			
+			var q = URL.parse('http://' + qm[4], true)
+			
+			if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
+				res.write('\n\n/* ------ BAD: ' + file + ' */\n'); 
+				return next();
+			};
 
-			prox('http://' + qm[4], xreq, xres, false
+			if ( !(q.protocol === 'http:' || q.protocol === 'https:') ) {
+				res.write('\n\n/* ------ BAD: ' + file + ' */\n');
+				return next();
+			};
+
+			prox(q.href, xreq, xres, false
 				, '__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';'
 				, '\nreturn [global,'+qm[2]+']});'
 			);
@@ -613,6 +634,98 @@ function pack(url, req, res) {
 
 	function complite() {
 		res.write('\n\n__MODULE=null;');
+		res.end();
+	};
+};
+
+function styles_pack(url, req, res) {
+	var u
+	, prx = true
+	, file_index = -1
+	, files
+	, file
+	;
+
+	var xreq = {
+		headers: {'User-Agent': (req.headers||false)['User-Agent']}
+	};
+
+	var xres = {
+		writeHead: function(status) {
+			if (status === 200) return;
+
+			prx = false;
+		},
+
+		write: function(chunk) {
+			if (prx) res.write(chunk);
+		},
+
+		end: function() {
+			next();
+		}
+	};
+
+
+	modscript(url, function(status, code, _files, _styles) {
+		files = _styles;
+		
+		if (status !== true) {
+			res.writeHead(404, {
+				'content-type': 'text/css; charset=UTF-8'
+			});
+
+			res.end('//404');
+			return;
+		};
+
+
+		res.writeHead(200, {
+			'content-type': 'text/css; charset=UTF-8'
+		});
+
+		next();
+	});
+
+	function next() {
+		var i;
+
+		do {
+			i = ++file_index;
+			if (i >= files.length || !files.length) {
+				complite();
+				return;
+			};
+
+			file = files[i];
+
+		} while(!file);
+
+
+		var q = URL.parse(file, true), qm;
+		var src;
+
+		if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
+			res.write('\n\n/* ------ 1 BAD: ' + file + ' */\n');
+			return next();
+		};
+
+		if ( !(q.protocol === 'http:' || q.protocol === 'https:') ) {
+			res.write('\n\n/* ------ 2 BAD: ' + file + ' */\n');
+			return next();
+		};
+
+
+		file = String(q.href).trim().replace(/^https:/, 'http:');
+		res.write('\n\n/* url: ' + file + ' */\n');
+
+		prox(String(file), xreq, xres, false
+			, ''
+			, ''
+		);
+	};
+
+	function complite() {
 		res.end();
 	};
 };
@@ -720,7 +833,7 @@ var HTTP = require('http');
 function prox(url, svreq, svres, UTFBOM, xA, xB) {
 	var q = URL.parse(url, true), x;
 
-	console.log('prox js', url);
+	console.log('prox ', url);
 
 	HTTP.Agent.defaultMaxSockets = 1;
 	HTTP.globalAgent.maxSockets = 2;
@@ -876,6 +989,9 @@ process.nextTick(function() {
 });
 
 
+function file_prox() {
+};
+
 function serverHendler(req, res) {
 	var q = URL.parse(req.url, true);
 	var qm;
@@ -885,7 +1001,7 @@ function serverHendler(req, res) {
 
 	if (String(q.pathname).indexOf('/file/') === 0) {
 		//qm = String(q.path).match(/\/file\/(\d+)\/-([^\/]*)\/(https?)\/(.+)/);
-		qm = String(q.path).match(/\/file\/(\d+)\/([^\/]+)\/(https?)\/(.+)/);
+		var qm = String(q.path).match(/\/file\/(\d+)\/([^\/]+)\/(https?)\/(.+)/);
 		/*
 		qm[1] - module ID
 		qm[2] - module vars
@@ -894,8 +1010,20 @@ function serverHendler(req, res) {
 		*/
 		
 		//console.log(qm);
-		
-		if (!qm) {
+
+		var file;
+
+		if (qm) {
+			var q = URL.parse('http://' + qm[4], true)
+
+			if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname) || !(q.protocol === 'http:' || q.protocol === 'https:') ) {
+				file = false;
+			} else {
+				file = q.href;
+			};
+		};
+
+		if (!file) {
 			res.writeHead(404
 				, {
 					'Content-Type': 'application/x-javascript; charset=UTF-8',
@@ -907,11 +1035,11 @@ function serverHendler(req, res) {
 			res.end('// error');
 			return;
 		};
-		
+
 		if (!qm[2]) qm[2] = 'module';
 		if (qm[2][0] === '-') qm[2] = qm[2].replace('-', 'module');
 
-		prox('http://' + qm[4], req, res, true
+		prox(file, req, res, true
 			, '__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';'
 			, '\nreturn [global,'+qm[2]+']});'
 		);
@@ -920,7 +1048,7 @@ function serverHendler(req, res) {
 	};
 
 
-	if (q.pathname === '/write' || q.pathname === '/pack') {
+	if (q.pathname === '/write' || q.pathname === '/pack' || q.pathname === '/styles') {
 		var src = q.query.src || '';
 
 		if (src.indexOf('http://') === 0) {
@@ -953,9 +1081,15 @@ function serverHendler(req, res) {
 		};
 
 		if (q.pathname === '/pack') {
-			pack(src, req, res);
+			script_pack(src, req, res);
 			return;
 		};
+
+		if (q.pathname === '/styles') {
+			styles_pack(src, req, res);
+			return;
+		};
+
 
 		endres(res, 400);
 		return;
