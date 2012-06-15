@@ -1,3 +1,3 @@
 ﻿
-exports.server_host = 'sm.zz7a.com';
+exports.server_host = 'scmod.vflash.ru';
 exports.port = 1777;
