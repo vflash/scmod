@@ -7,6 +7,7 @@ var URL = require('url');
 var PATH = require('path');
 var qs = require('querystring');
 var jsmin = require('./jsmin.js');
+//var crypto = require('crypto');
 
 var log = console.log;
 
@@ -395,11 +396,13 @@ function modscript(url, end) {
 
 		var DEPEND = {};
 		var MDNAME = {};
+		var MDURL = {};
 		var MDS = {};
 		var langs = {};
 
 		global_modules.forEach(function(x) {
 			MDS[x.id] = {};
+			MDURL[x.id] = x.src;
 
 			langs[x.id] = x.langs || false;
 
@@ -490,6 +493,7 @@ function modscript(url, end) {
 				, files
 				, styles
 				, langs
+				, MDURL
 			);
 		};
 		
@@ -499,6 +503,10 @@ function modscript(url, end) {
 
 function write(url, end) {
 	modscript(url, function(status, code, files, styles) {
+		if (files.length) {
+			code += 'document.write('+JSON.stringify('<script src="' + files.join('"></script><script src="') + '"></script>')+');\n'
+			code += '/*\n scripts\n'+files.join('\n')+'\n*/\n';
+		};
 
 		if (styles) {
 			var s = [], a, i;
@@ -511,13 +519,9 @@ function write(url, end) {
 			};
 
 			code += '\ndocument.write('+JSON.stringify(s.join(''))+');\n';
-			code += '/*\n'+styles.join('\n')+'\n*/\n\n';
+			code += '/*\n styles\n'+styles.join('\n')+'\n*/\n\n';
 		};
 
-		if (files.length) {
-			code += 'document.write('+JSON.stringify('<script src="' + files.join('"></script><script src="') + '"></script>')+');\n'
-			code += '/*\n'+files.join('\n')+'\n*/\n';
-		};
 
 		if (typeof end == 'function') {
 			end(true, code);
@@ -657,8 +661,7 @@ function script_pack(url, req, res, jmin, langKey) {
 
 			modID = +qm[1] || 0;
 
-			res.write('\n\n/* url: http://' + qm[4] + ' */\n');
-			
+
 			var q = URL.parse('http://' + qm[4], true)
 			
 			if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
@@ -670,6 +673,8 @@ function script_pack(url, req, res, jmin, langKey) {
 				res.write('\n\n/* ------ BAD: ' + file + ' */\n');
 				return next();
 			};
+
+			res.write('\n\n/* url: ' + String('http://' + qm[4]).replace(/^https?:\/\/[^\/]+/, '---') + ' */\n');
 
 			prox(q.href, xreq, xres, false
 				, '__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';'
@@ -687,7 +692,7 @@ function script_pack(url, req, res, jmin, langKey) {
 	};
 };
 
-function styles_pack(url, req, res) {
+function styles_pack(url, req, res, cssmin) {
 	var u
 	, prx = true
 	, file_index = -1
@@ -698,19 +703,34 @@ function styles_pack(url, req, res) {
 	var xreq = {
 		headers: {'User-Agent': (req.headers||false)['User-Agent']}
 	};
+	
+	var buffer = [];
 
 	var xres = {
 		writeHead: function(status) {
 			if (status === 200) return;
-
 			prx = false;
 		},
 
 		write: function(chunk) {
-			if (prx) res.write(chunk);
+			// if (prx) res.write(chunk);
+			if (cssmin) {
+				if (prx) buffer.push(chunk);
+			} else {
+				if (prx) res.write(chunk);
+			};
+			
 		},
 
 		end: function() {
+			if (cssmin) {
+				res.write(
+					buffer.join('').replace(/({|;|,|\n)\s+(?=}?)|\/\*([^\*]|\*(?=[^\/]))+\*\/\s*/g, '$1')
+				);
+
+				buffer.length = 0;
+			};
+
 			next();
 		}
 	};
@@ -766,7 +786,10 @@ function styles_pack(url, req, res) {
 
 
 		file = String(q.href).trim().replace(/^https:/, 'http:');
-		res.write('\n\n/* url: ' + file + ' */\n');
+
+		//res.write('\n\n/* url: ' + file + ' */\n');
+		//res.write('\n\n/* url: ' + file.replace(/^http:\/\/[^\/]+/, function(x) {return crypto.createHash('md5').update(x).digest('hex').substr(-7)}) + ' */\n');
+		res.write('\n\n/* url: ' + file.replace(/^http:\/\/[^\/]+/, '---') + ' */\n');
 
 		prox(String(file), xreq, xres, false
 			, ''
@@ -779,6 +802,181 @@ function styles_pack(url, req, res) {
 	};
 };
 
+
+
+function script_langs(url, req, res, jmin, langKey) {
+	var u
+	, prx = true
+	, file_index = -1
+	, files
+	, langs
+	, mdurl
+	, LNG = {}
+	, file
+	, modID
+	;
+
+	var xreq = {
+		headers: {'User-Agent': (req.headers||false)['User-Agent']}
+	};
+
+	var buffer = [];
+
+	var xres = {
+		writeHead: function(status) {
+			if (status === 200) return;
+
+			prx = false;
+		},
+
+		write: function(chunk) {
+			if (jmin) {
+				if (prx) buffer.push(chunk);
+			} else {
+				if (prx) res.write(chunk);
+			};
+		},
+
+		end: function() {
+			if (jmin) {
+				var code = '', lang, x;
+
+				try {
+					code = jsmin("", buffer.join(''), 1);
+				} catch (e) {
+					res.write('jsmin error');
+				};
+
+				buffer.length = 0;
+
+
+				var m = code.match(/\/\*([^*]|\*(?=[^\/]))+\*\/|\/(\\\\|\\\/|[^\/\n])+\/|\'(\\\\|\\\'|[^\'])*'|\"(\\\\|\\\"|[^\"])*\"/g) || false;
+				var l = m.length, i = 0, x;
+
+				var lang_new = LNG[modID] || {};
+				var lang_old = langs[modID] || false;
+
+				for(; i < l; i++)  {
+					x = m[i];
+
+					if (x.charCodeAt(0) !== 34) continue;
+
+					try {
+						x = JSON.parse(x)
+					} catch (e) {
+						console.log('ups JSON.parse(lang)');
+						continue;
+					};
+
+					LNG[modID] = lang_new;
+
+
+					if (typeof lang_new[x] !== 'object') {
+						var xs = lang_new[x] = {};
+						
+						['vn', 'en'].map(function(v) {
+							var vp = (lang_old[x]||false)[v];
+							xs[v] = typeof vp === 'string' ? vp : null;
+						});
+					};
+				};
+			};
+
+
+			next();
+		}
+	};
+
+
+	modscript(url, function(status, code, _files, _styles, _langs, _mdurl) {
+		if (status !== true) {
+			res.writeHead(404, {
+				'content-type': 'application/x-javascript; charset=UTF-8'
+			});
+
+			res.end('//404');
+			return;
+		};
+
+
+		res.writeHead(200, {
+			'content-type': 'application/x-javascript; charset=UTF-8'
+		});
+
+
+		files = _files;
+		langs = _langs;
+		mdurl = _mdurl;
+
+		next();
+	});
+
+	function next() {
+		var i;
+
+		do {
+			i = ++file_index;
+			if (i >= files.length || !files.length) {
+				complite();
+				return;
+			};
+
+			file = files[i];
+
+		} while(!file);
+
+		
+
+		var q = URL.parse(file, true), qm;
+
+		if (String(q.pathname).indexOf('/file/') === 0) {
+			qm = String(q.path).match(/\/file\/(\d+)\/([^\/]*)\/(https?)\/(.+)/);
+
+			if (!qm) {
+				// res.write('\n\n/* url: http://' + qm[4] + ' -- error -- */\n');
+				return next();
+			};
+
+
+			if (!qm[2]) qm[2] = 'module';
+			if (qm[2][0] === '-') qm[2] = qm[2].replace('-', 'module');
+
+			modID = +qm[1] || 0;
+
+			//res.write('\n\n/* url: http://' + qm[4] + ' */\n');
+			
+			var q = URL.parse('http://' + qm[4], true)
+			
+			if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
+				//res.write('\n\n/* ------ BAD: ' + file + ' */\n'); 
+				return next();
+			};
+
+			if ( !(q.protocol === 'http:' || q.protocol === 'https:') ) {
+				//res.write('\n\n/* ------ BAD: ' + file + ' */\n');
+				return next();
+			};
+
+			prox(q.href, xreq, xres, false, null, null);
+
+		} else {
+			next();
+		};
+	};
+
+	function complite() {
+		var r = {}, i, x;
+
+		for (i in LNG) {
+			if (typeof mdurl[i] === 'string') {
+				r[mdurl[i]] = LNG[i];
+			}
+		};
+
+		res.write(JSON.stringify(r, null, "\t"));
+		res.end();
+	};
+};
 
 
 
@@ -1044,6 +1242,8 @@ function file_prox() {
 function serverHendler(req, res) {
 	var q = URL.parse(req.url, true);
 	var qm;
+	
+
 
 	//console.log(req.headers);
 
@@ -1097,58 +1297,67 @@ function serverHendler(req, res) {
 	};
 
 
-	if (q.pathname === '/write' || q.pathname === '/pack' || q.pathname === '/jsmin' || q.pathname === '/styles') {
-		var src = q.query.src || '';
+	switch(q.pathname) {
+		case '/write': case '/pack': case '/jsmin': case '/styles': case '/langs':
+			break;
 
-		if (src.indexOf('http://') === 0) {
-			src = normalizeURL(src);
-		} else
-		if ((src[0] == '.' || src[0] == '/') && String(req.headers['referer']).indexOf('http://') === 0 ) {
-			src = formatURL(URL.parse(String(req.headers['referer'])), src);
-		} else {
-			src = false;
-		};
-
-		if (!src) {
-			return endres(res, 404);
-		};
-
-		if (q.pathname === '/write') {
-			write(src, function(status, code) {
-				res.writeHead(200
-					, {
-						'Content-Type': 'application/x-javascript; charset=UTF-8',
-						'Cache-Control': 'no-store, no-cache, must-revalidate',
-						'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
-					}
-				);
-
-				res.end(code);
-			});
-
+		default:
+			endres(res, 400);
 			return;
-		};
+	};
 
-		if (q.pathname === '/pack') {
-			script_pack(src, req, res);
-			return;
-		};
-		
-		if (q.pathname === '/jsmin') {
-			script_pack(src, req, res, true, q.query.lang ? String(q.query.lang) : false);
-			return;
-		};
+	var src = q.query.src || '';
 
-		if (q.pathname === '/styles') {
-			styles_pack(src, req, res);
-			return;
-		};
+	if (src.indexOf('http://') === 0) {
+		src = normalizeURL(src);
+	} else
+	if ((src[0] == '.' || src[0] == '/') && String(req.headers['referer']).indexOf('http://') === 0 ) {
+		src = formatURL(URL.parse(String(req.headers['referer'])), src);
+	} else {
+		src = false;
+	};
 
+	if (!src) {
+		return endres(res, 404);
+	};
 
-		endres(res, 400);
+	if (q.pathname === '/write') {
+		write(src, function(status, code) {
+			res.writeHead(200
+				, {
+					'Content-Type': 'application/x-javascript; charset=UTF-8',
+					'Cache-Control': 'no-store, no-cache, must-revalidate',
+					'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+				}
+			);
+
+			res.end(code);
+		});
+
 		return;
 	};
 
+	if (q.pathname === '/pack') {
+		script_pack(src, req, res);
+		return;
+	};
+	
+	if (q.pathname === '/jsmin') {
+		script_pack(src, req, res, true, q.query.lang ? String(q.query.lang) : false);
+		return;
+	};
+
+	if (q.pathname === '/langs') {
+		script_langs(src, req, res, true, q.query.lang ? String(q.query.lang) : false);
+		return;
+	};
+
+	if (q.pathname === '/styles') {
+		var x = q.query.min;
+
+		styles_pack(src, req, res, x === '1' || x === 'true');
+		return;
+	};
 
 	endres(res, 400);
 };
