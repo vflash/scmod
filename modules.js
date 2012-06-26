@@ -3,40 +3,141 @@
 
 var config = require('./config.js');
 var HTTP = require('http');
+var HTTPS = require('https');
 var URL = require('url');
 var PATH = require('path');
 var qs = require('querystring');
 var jsmin = require('./jsmin.js');
 //var crypto = require('crypto');
 
+//HTTP.globalAgent.maxSockets = 1;
+HTTPS.globalAgent.maxSockets = 1;
+
+
+HTTPS.globalAgent.addRequest = function(req, host, port) {
+  var name = host + ':' + port;
+  if (!this.sockets[name]) this.sockets[name] = [];
+  
+  if (!this.sockets[name].length || (this.requests[name]||false).length > (3 + this.sockets[name].length * 10)  ) {
+    // If we are under maxSockets create a new one.
+    req.onSocket(this.createSocket(name, host, port));
+
+  } else {
+    // We are over limit so we'll add it to the queue.
+    if (!this.requests[name]) this.requests[name] = [];
+    this.requests[name].push(req);
+  }
+};
+
+
+
+
 var log = console.log;
 
 
+process.nextTick(function() {
+	HTTP.createServer(serverHendler).listen(config.port, "127.0.0.1");
+	console.log('Server running at http://127.0.0.1:'+(config.port)+'/');
+});
+
+
+
+function serverHendler(req, res) {
+	var q = URL.parse(req.url, true);
+
+	//console.log(req);
+
+	if (String(q.pathname).indexOf('/file/') === 0) {
+		file_prox(req, res, q);
+		return;
+	};
+
+
+	if (q.query.auth !== 'base') {
+		if (req.headers['authorization']) req.headers['authorization'] = null;
+	} else {
+		if (!req.headers['authorization']) {
+			res.writeHead(401
+				, {
+					'Content-Type': 'application/x-javascript; charset=UTF-8',
+					'Cache-Control': 'no-store, no-cache, must-revalidate',
+					'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT',
+					'WWW-Authenticate': 'Basic realm="Password Required"'
+				}
+			);
+
+			res.end();
+			return;
+		};
+	};
+
+
+	var src = q.query.src || '';
+
+	if (/^https?:\/\//.test(src) ) {
+		src = normalizeURL(src);
+	} else
+	if ((src[0] == '.' || src[0] == '/') && String(req.headers['referer']).indexOf('http://') === 0 ) {
+		src = formatURL(URL.parse(String(req.headers['referer'])), src);
+	} else {
+		src = false;
+	};
+
+	if (!src) {
+		return endres(res, 404);
+	};
+
+	switch(q.pathname) {
+		case '/sandbox': case '/write': case '/dev':
+			write(req, src, function(status, code) {
+				res.writeHead(200
+					, {
+						'Content-Type': 'application/x-javascript; charset=UTF-8',
+						'Cache-Control': 'no-store, no-cache, must-revalidate',
+						'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+					}
+				);
+
+				res.end(code);
+			});
+			return;
+
+		case '/pack':
+			script_pack(src, req, res);
+			return;
+		case '/scripts': case '/jsmin': 
+			script_pack(src, req, res, true, q.query.lang ? String(q.query.lang) : false);
+			return;
+		case '/styles':
+			styles_pack(src, req, res, q.query.min != 'false');
+			return;
+		case '/langs':
+			script_langs(src, req, res, true, q.query.lang ? String(q.query.lang) : false);
+			return;
+
+		default:
+			endres(res, 400);
+	};
+
+};
 
 
 
 
-/*
-'__MODULE('+key+', function(global, module, modules) {'++'\n});\n'
-jsmd.zz7a.com/work?src=http://cc.com&path=''
-jsmd.zz7a.com/dev?src=http://cc.com&path=''
-*/
 
 
-
-// http://zz7a.com/js/moon/moon.json
-
-
-
-
-
-function http_query(url, end) {
+function http_query(url, options, end) {
 	var src = URL.parse(url);
 	//console.log('http_query ', url);
-	
+	options = options || false;
+
 	var query = {
 		method:'GET',
-		headers: {},
+		headers: {
+			authorization: options.authorization
+		},
+
+		//agent: new HTTP.Agent({maxSockets: 1}),
 
 		host: src.host,
 		port: src.protocol === 'https:' ? 443 : 80, 
@@ -53,9 +154,9 @@ function http_query(url, end) {
 		};
 	};
 
-	var client = src.protocol === 'https:' ? https.request(query) : HTTP.request(query);
+	var client = src.protocol === 'https:' ? HTTPS.request(query) : HTTP.request(query);
 
-	client.setTimeout(6000, err);
+	client.setTimeout(4000, err);
 	client.on("error", err);
 
 	client.on('response'
@@ -160,7 +261,7 @@ function normalizeURL(url) {
 };
 
 
-var smod = function(start_url, end_compite) {
+function smod(ureq, start_url, end_compite) {
 	var modules = [];
 	var modulesHash = {};
 	var files = [];
@@ -172,15 +273,17 @@ var smod = function(start_url, end_compite) {
 
 		if (url === true) {
 			virtmod = true;
-		} else
-		if (!/^https?:\/\//.test(url)) {
-			if (String(url).substr(0,7) == 'global:') {
-				virtmod = true;
-			} else
-			if (String(url).substr(0,3) == '://') {
-				url = normalizeURL('http' + url);
-			} else {
-				url = normalizeURL('http://' + url);
+
+		} else {
+			if (!/^https?:\/\//.test(url)) {
+				if (String(url).substr(0,7) == 'global:') {
+					virtmod = true;
+				} else
+				if (String(url).substr(0,2) == '//') {
+					url = normalizeURL('http' + url);
+				} else {
+					url = normalizeURL('http://' + url);
+				};
 			};
 		};
 
@@ -310,9 +413,7 @@ var smod = function(start_url, end_compite) {
 			return;
 		};
 
-
-
-		http_query(url, function(status, data, type) {
+		http_query(url, {authorization: /^https/.test(url) ? ureq.headers['authorization'] : null}, function(status, data, type) {
 			if (stop) return;
 
 			if (status !== true) {
@@ -386,8 +487,8 @@ var smod = function(start_url, end_compite) {
 
 
 //write('http://zz7a.com/js/moon/moon.json', func)
-function modscript(url, end) {
-	smod(url, function(status, global_modules, global_files, global_styles) {
+function modscript(ureq, url, end) {
+	smod(ureq, url, function(status, global_modules, global_files, global_styles) {
 
 		if (status !== true) {
 			if (typeof end == 'function') end();
@@ -441,12 +542,13 @@ function modscript(url, end) {
 		var u
 		, files = []
 		, a = global_files
+		, qhost = (ureq.headers['x-real-protocol']==='https' ? 'https://' : 'http://') + String(ureq.headers['x-real-host']||ureq.headers.host||'unknown.host')
 		, i = 0
 		, x, v
 		;
 
 		while(x = a[i++]) {
-			var url = 'http://'+String(config.server_host)+'/file/'+ x.moduleID+'/';
+			var url = qhost+'/file/'+ x.moduleID+'/';
 
 			if (v = MDNAME[x.moduleID]) {
 				url += '' + v.map(encodeURIComponent).join(',');
@@ -501,8 +603,8 @@ function modscript(url, end) {
 };
 
 
-function write(url, end) {
-	modscript(url, function(status, code, files, styles) {
+function write(req, url, end) {
+	modscript(req, url, function(status, code, files, styles) {
 		if (files.length) {
 			code += 'document.write('+JSON.stringify('<script src="' + files.join('"></script><script src="') + '"></script>')+');\n'
 			code += '/*\n scripts\n'+files.join('\n')+'\n*/\n';
@@ -541,7 +643,10 @@ function script_pack(url, req, res, jmin, langKey) {
 	;
 
 	var xreq = {
-		headers: {'User-Agent': (req.headers||false)['User-Agent']}
+		headers: {
+			'user-agent': (req.headers||false)['user-agent'],
+			'authorization': (req.headers||false)['authorization']
+		}
 	};
 
 	var buffer = [];
@@ -600,7 +705,7 @@ function script_pack(url, req, res, jmin, langKey) {
 	};
 
 
-	modscript(url, function(status, code, _files, _styles, _langs) {
+	modscript(req, url, function(status, code, _files, _styles, _langs) {
 		if (status !== true) {
 			res.writeHead(404, {
 				'content-type': 'application/x-javascript; charset=UTF-8'
@@ -661,8 +766,7 @@ function script_pack(url, req, res, jmin, langKey) {
 
 			modID = +qm[1] || 0;
 
-
-			var q = URL.parse('http://' + qm[4], true)
+			var q = URL.parse((qm[3] == 'https' ? 'https://' : 'http://') + qm[4], true)
 			
 			if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
 				res.write('\n\n/* ------ BAD: ' + file + ' */\n'); 
@@ -701,8 +805,13 @@ function styles_pack(url, req, res, cssmin) {
 	;
 
 	var xreq = {
-		headers: {'User-Agent': (req.headers||false)['User-Agent']}
+		headers: {
+			'user-agent': (req.headers||false)['user-agent'],
+			'authorization': (req.headers||false)['authorization']
+		}
 	};
+	
+	//console.log(req.headers)
 	
 	var buffer = [];
 
@@ -736,9 +845,9 @@ function styles_pack(url, req, res, cssmin) {
 	};
 
 
-	modscript(url, function(status, code, _files, _styles) {
+	modscript(req, url, function(status, code, _files, _styles) {
 		files = _styles;
-		
+
 		if (status !== true) {
 			res.writeHead(404, {
 				'content-type': 'text/css; charset=UTF-8'
@@ -785,11 +894,13 @@ function styles_pack(url, req, res, cssmin) {
 		};
 
 
-		file = String(q.href).trim().replace(/^https:/, 'http:');
+		file = String(q.href).trim();
 
 		//res.write('\n\n/* url: ' + file + ' */\n');
 		//res.write('\n\n/* url: ' + file.replace(/^http:\/\/[^\/]+/, function(x) {return crypto.createHash('md5').update(x).digest('hex').substr(-7)}) + ' */\n');
 		res.write('\n\n/* url: ' + file.replace(/^http:\/\/[^\/]+/, '---') + ' */\n');
+		
+		
 
 		prox(String(file), xreq, xres, false
 			, ''
@@ -817,7 +928,10 @@ function script_langs(url, req, res, jmin, langKey) {
 	;
 
 	var xreq = {
-		headers: {'User-Agent': (req.headers||false)['User-Agent']}
+		headers: {
+			'user-agent': (req.headers||false)['user-agent'],
+			'authorization': (req.headers||false)['authorization']
+		}
 	};
 
 	var buffer = [];
@@ -888,7 +1002,7 @@ function script_langs(url, req, res, jmin, langKey) {
 	};
 
 
-	modscript(url, function(status, code, _files, _styles, _langs, _mdurl) {
+	modscript(req, url, function(status, code, _files, _styles, _langs, _mdurl) {
 		if (status !== true) {
 			res.writeHead(404, {
 				'content-type': 'application/x-javascript; charset=UTF-8'
@@ -945,7 +1059,8 @@ function script_langs(url, req, res, jmin, langKey) {
 
 			//res.write('\n\n/* url: http://' + qm[4] + ' */\n');
 			
-			var q = URL.parse('http://' + qm[4], true)
+			//var q = URL.parse('http://' + qm[4], true)
+			var q = URL.parse((qm[3] == 'https' ? 'https://' : 'http://') + qm[4], true)
 			
 			if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
 				//res.write('\n\n/* ------ BAD: ' + file + ' */\n'); 
@@ -1070,24 +1185,19 @@ return module
 */
 
 
-
-
-
-
-var URL = require('url');
-var HTTP = require('http');
+/*
+console.log(HTTPS.globalAgent);
+setInterval(function() {
+	console.log(HTTPS.globalAgent);
+}, 2000)
+*/
 
 function prox(url, svreq, svres, UTFBOM, xA, xB) {
-	var q = URL.parse(url, true), x;
-
 	console.log('prox ', url);
 
-	HTTP.Agent.defaultMaxSockets = 1;
-	HTTP.globalAgent.maxSockets = 4;
-
+	var q = URL.parse(url, true), x;
 	var headers = {host: String(q.host)};
 
-	//console.log(svreq.headers);
 	if (x = svreq.headers['if-modified-since']) {
 		headers['If-Modified-Since'] = x;
 	};
@@ -1101,101 +1211,127 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 		headers['Referer'] = x;
 	};
 
-	HTTP.get(
-		{ 
-			headers: headers,
-			host: q.host, 
-			path: q.path
-		}
+	if (x = svreq.headers['authorization']) {
+		headers['Authorization'] = x;
+	};
 
-		, function(response) {
-			var headers = response.headers, x;
+	var options = { 
+		headers: headers,
+		host: q.host, 
+		path: q.path
+	};
 
-			if (headers['set-cookie']) {
-				delete(headers['set-cookie']);
-			};
+	var client = q.protocol === 'https:' ? HTTPS.request(options) : HTTP.request(options);
+	//client.setSocketKeepAlive(true);
+	
+	//console.log(client.agent);
 
-			if (headers['connection']) {
-				delete(headers['connection']);
-			};
-			
-			if (headers['content-length']) {
-				delete(headers['content-length']);
-			};
-			
-
-			//headers['content-type'] = 'application/x-javascript; charset=UTF-8';
-
-			if (response.statusCode != 200) {
-				svres.writeHead(response.statusCode, headers);
-
-				//response.on('data', function(c){svres.write(c)});
-				response.on('end', function(){svres.end()});
-				return;
-			};
-
-			headers['content-type'] = 'application/x-javascript; charset=UTF-8';
-			
-			
-			if (x = headers['content-length']) {
-				//headers['content-length'] = (+x + xA.length + xB.length) || 0;
-				delete(headers['content-length']);
-			};
-
-			//console.log(headers);
-
-			svres.writeHead(200, headers);
-			
-			
-			var first = true;
-			var datastart = true;
-			//response.setEncoding('utf8');
-			
-			response.on('data', function(chunk) {
-				//console.log(chunk)
-				if (first) {
-					first = false;
-
-					if (chunk[0] == 0xEF && chunk[1] == 0xBB && chunk[2] == 0xBF ) {
-						if (UTFBOM) svres.write(chunk.slice(0, 3));
-						chunk = chunk.slice(3);
-					};
-				};
-
-
-				if (chunk.length) {
-					if (datastart) {
-						datastart = false;
-						svres.write(xA);
-					};
-
-					svres.write(chunk);
-				};
-			});
-
-			response.on('end', function() {
-				if (datastart) {
-					svres.write('// file null');
-				} else {
-					svres.write(xB);
-				};
-				//svres.write(xB);
-				
-				svres.end();
-			}); 
-		}
-	).on('error', function(e) {
-		svres.writeHead(500, {});
-		svres.end('500');
-		
-		console.log('error - 500');
-
-	}).setTimeout(6000, function() {
+	client.setTimeout(4000, function() {
 		svres.writeHead(500, {});
 		svres.end('503');
 		
 		console.log('error - 503');
 	});
+
+	//console.log(HTTPS.globalAgent);
+	/*
+	console.log(HTTPS.globalAgent);
+	new function() {
+		var s = HTTPS.globalAgent.sockets, i, x;
+		for (i in s)  {
+			console.log(s[i]);
+		}
+	};
+	*/
+	
+
+
+	
+	client.on('error', function(e) {
+		svres.writeHead(500, {});
+		svres.end('500');
+		
+		console.log('error - 500');
+	});
+
+	client.on('response', function(response) {
+		var headers = response.headers, x;
+
+		if (headers['set-cookie']) {
+			delete(headers['set-cookie']);
+		};
+
+		if (headers['connection']) {
+			delete(headers['connection']);
+		};
+
+
+		if (headers['content-length']) {
+			delete(headers['content-length']);
+		};
+
+		//headers['content-type'] = 'application/x-javascript; charset=UTF-8';
+
+		if (response.statusCode != 200) {
+			svres.writeHead(response.statusCode, headers);
+
+			//response.on('data', function(c){svres.write(c)});
+			response.on('end', function(){svres.end()});
+			return;
+		};
+
+		headers['content-type'] = 'application/x-javascript; charset=UTF-8';
+		
+		
+		if (x = headers['content-length']) {
+			//headers['content-length'] = (+x + xA.length + xB.length) || 0;
+			delete(headers['content-length']);
+		};
+
+		//console.log(headers);
+
+		svres.writeHead(200, headers);
+		
+		
+		var first = true;
+		var datastart = true;
+		//response.setEncoding('utf8');
+		
+		response.on('data', function(chunk) {
+			//console.log(chunk)
+			if (first) {
+				first = false;
+
+				if (chunk[0] == 0xEF && chunk[1] == 0xBB && chunk[2] == 0xBF ) {
+					if (UTFBOM) svres.write(chunk.slice(0, 3));
+					chunk = chunk.slice(3);
+				};
+			};
+
+
+			if (chunk.length) {
+				if (datastart) {
+					datastart = false;
+					svres.write(xA);
+				};
+
+				svres.write(chunk);
+			};
+		});
+
+		response.on('end', function() {
+			if (datastart) {
+				svres.write('// file null');
+			} else {
+				svres.write(xB);
+			};
+			//svres.write(xB);
+			
+			svres.end();
+		}); 
+	});
+
+	client.end();
 };
 
 
@@ -1229,137 +1365,51 @@ function endres(res, status) {
 
 
 
-process.nextTick(function() {
-	HTTP.createServer(serverHendler).listen(config.port, "127.0.0.1");
 
-	console.log('Server running at http://127.0.0.1:'+(config.port)+'/');
-});
+function file_prox(req, res, q) {
+	var qm = String(q.path).match(/\/file\/(\d+)\/([^\/]+)\/(https?)\/(.+)/);
+	/*
+	qm[1] - module ID
+	qm[2] - module vars
+	qm[3] - src protocol
+	qm[4] - src
+	*/
 
+	//console.log(qm);
 
-function file_prox() {
-};
+	var file;
 
-function serverHendler(req, res) {
-	var q = URL.parse(req.url, true);
-	var qm;
-	
+	if (qm) {
+		var q = URL.parse((qm[3] == 'https' ? 'https://' : 'http://') + qm[4], true);
 
-
-	//console.log(req.headers);
-
-
-	if (String(q.pathname).indexOf('/file/') === 0) {
-		//qm = String(q.path).match(/\/file\/(\d+)\/-([^\/]*)\/(https?)\/(.+)/);
-		var qm = String(q.path).match(/\/file\/(\d+)\/([^\/]+)\/(https?)\/(.+)/);
-		/*
-		qm[1] - module ID
-		qm[2] - module vars
-		qm[3] - src protocol
-		qm[4] - src
-		*/
-		
-		//console.log(qm);
-
-		var file;
-
-		if (qm) {
-			var q = URL.parse('http://' + qm[4], true)
-
-			if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname) || !(q.protocol === 'http:' || q.protocol === 'https:') ) {
-				file = false;
-			} else {
-				file = q.href;
-			};
+		if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname) || !(q.protocol === 'http:' || q.protocol === 'https:') ) {
+			file = false;
+		} else {
+			file = q.href;
 		};
+	};
 
-		if (!file) {
-			res.writeHead(404
-				, {
-					'Content-Type': 'application/x-javascript; charset=UTF-8',
-					'Cache-Control': 'no-store, no-cache, must-revalidate',
-					'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
-				}
-			);
-
-			res.end('// error');
-			return;
-		};
-
-		if (!qm[2]) qm[2] = 'module';
-		if (qm[2][0] === '-') qm[2] = qm[2].replace('-', 'module');
-
-		prox(file, req, res, true
-			, '__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';'
-			, '\nreturn [global,'+qm[2]+']});'
+	if (!file) {
+		res.writeHead(404
+			, {
+				'Content-Type': 'application/x-javascript; charset=UTF-8',
+				'Cache-Control': 'no-store, no-cache, must-revalidate',
+				'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+			}
 		);
 
+		res.end('// error');
 		return;
 	};
 
+	if (!qm[2]) qm[2] = 'module';
+	if (qm[2][0] === '-') qm[2] = qm[2].replace('-', 'module');
 
-	switch(q.pathname) {
-		case '/write': case '/pack': case '/jsmin': case '/styles': case '/langs':
-			break;
-
-		default:
-			endres(res, 400);
-			return;
-	};
-
-	var src = q.query.src || '';
-
-	if (src.indexOf('http://') === 0) {
-		src = normalizeURL(src);
-	} else
-	if ((src[0] == '.' || src[0] == '/') && String(req.headers['referer']).indexOf('http://') === 0 ) {
-		src = formatURL(URL.parse(String(req.headers['referer'])), src);
-	} else {
-		src = false;
-	};
-
-	if (!src) {
-		return endres(res, 404);
-	};
-
-	if (q.pathname === '/write') {
-		write(src, function(status, code) {
-			res.writeHead(200
-				, {
-					'Content-Type': 'application/x-javascript; charset=UTF-8',
-					'Cache-Control': 'no-store, no-cache, must-revalidate',
-					'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
-				}
-			);
-
-			res.end(code);
-		});
-
-		return;
-	};
-
-	if (q.pathname === '/pack') {
-		script_pack(src, req, res);
-		return;
-	};
-	
-	if (q.pathname === '/jsmin') {
-		script_pack(src, req, res, true, q.query.lang ? String(q.query.lang) : false);
-		return;
-	};
-
-	if (q.pathname === '/langs') {
-		script_langs(src, req, res, true, q.query.lang ? String(q.query.lang) : false);
-		return;
-	};
-
-	if (q.pathname === '/styles') {
-		var x = q.query.min;
-
-		styles_pack(src, req, res, x === '1' || x === 'true');
-		return;
-	};
-
-	endres(res, 400);
+	prox(file, req, res, true
+		, '__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';'
+		, '\nreturn [global,'+qm[2]+']});'
+	);
 };
+
 
 
