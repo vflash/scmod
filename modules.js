@@ -45,7 +45,7 @@ process.nextTick(function() {
 function serverHendler(req, res) {
 	var q = URL.parse(req.url, true);
 
-	//console.log(req);
+	//console.log(req.headers);
 
 	if (String(q.pathname).indexOf('/file/') === 0) {
 		file_prox(req, res, q);
@@ -124,23 +124,66 @@ function serverHendler(req, res) {
 
 
 
+var auth_domains = config.auth_domains ? String(config.auth_domains).split(/\s+/) : false
+
+function access_domain(protocol, host, allowed_domains) {
+	if (protocol !== 'https:') return false;
+
+	var m = auth_domains || [], i = 0, s;
+	if (allowed_domains) {
+		m = m.concat(String(allowed_domains).split(/\s+/));
+	};
+
+	for (host = String(host); i < m.length; i++) {
+		if (s = m[i]) {
+			if (s.charCodeAt(0) === 46 ? host.substr(-s.length) === s || host === s.substr(1) : host === s)  {
+				return true;
+			};
+		};
+	};
+
+	return false;
+};
+
+function parse_cookie(s) {
+        if (!s) return false;
+
+        var u
+        , a = s.split(';')
+        , i = a.length
+        , r = {}
+        , j, v
+        ;
+
+        while(i--) {
+                v = a[i].trim();
+                j = v.indexOf('=');
+
+                if (j > 0) {
+                        r[v.substring(0, j)] = v.substr(j+1) || '';
+                };
+        };
+
+        return r;
+};
+
 
 
 function http_query(url, options, end) {
 	var src = URL.parse(url);
-	//console.log('http_query ', url);
+
+	console.log('mod \t', url);
+
 	options = options || false;
 
 	var query = {
 		method:'GET',
 		headers: {
-			authorization: options.authorization
+			authorization: options.authorization ? access_domain(src.protocol, src.host, false) ? options.authorization : null : null
 		},
 
-		//agent: new HTTP.Agent({maxSockets: 1}),
-
 		host: src.host,
-		port: src.protocol === 'https:' ? 443 : 80, 
+		port: src.protocol === 'https:' ? 443 : 80,
 		path: src.path
 	};
 
@@ -413,7 +456,8 @@ function smod(ureq, start_url, end_compite) {
 			return;
 		};
 
-		http_query(url, {authorization: /^https/.test(url) ? ureq.headers['authorization'] : null}, function(status, data, type) {
+
+		http_query(url, {authorization: ureq.headers['authorization']}, function(status, data, type) {
 			if (stop) return;
 
 			if (status !== true) {
@@ -1193,7 +1237,7 @@ setInterval(function() {
 */
 
 function prox(url, svreq, svres, UTFBOM, xA, xB) {
-	console.log('prox ', url);
+	console.log('prox \t', url);
 
 	var q = URL.parse(url, true), x;
 	var headers = {host: String(q.host)};
@@ -1212,7 +1256,9 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 	};
 
 	if (x = svreq.headers['authorization']) {
-		headers['Authorization'] = x;
+		if (access_domain(q.protocol, q.host)) {
+			headers['Authorization'] = x;
+		};
 	};
 
 	var options = { 

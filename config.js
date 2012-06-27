@@ -1,3 +1,7 @@
 ﻿
-exports.server_host = 'scmod.vflash.ru';
 exports.port = 1777;
+exports.auth_domains = '.vflash.ru .timtoi.vn';
+
+
+
+
