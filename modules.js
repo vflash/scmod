@@ -83,12 +83,19 @@ function serverHendler(req, res) {
 		src = false;
 	};
 
+	
 	if (!src) {
 		return endres(res, 404);
 	};
+	
+
+	req.isLoadModuleLine = true; // грузить модули последовательно
 
 	switch(q.pathname) {
 		case '/sandbox': case '/write': case '/dev':
+			req.isLoadModuleLine = false;
+
+
 			write(req, src, function(status, code) {
 				res.writeHead(200
 					, {
@@ -105,13 +112,15 @@ function serverHendler(req, res) {
 		case '/pack':
 			script_pack(src, req, res);
 			return;
-		case '/scripts': case '/jsmin': 
+		case '/scripts': case '/jsmin':
 			script_pack(src, req, res, true, q.query.lang ? String(q.query.lang) : false);
 			return;
 		case '/styles':
 			styles_pack(src, req, res, q.query.min != 'false');
 			return;
 		case '/langs':
+			req.isLoadModuleLine = false;
+
 			script_langs(src, req, res, true, q.query.lang ? String(q.query.lang) : false);
 			return;
 
@@ -304,12 +313,18 @@ function normalizeURL(url) {
 };
 
 
+
 function smod(ureq, start_url, end_compite) {
+	var isLoadModuleLine = ureq.isLoadModuleLine ? true : false;
 	var modules = [];
 	var modulesHash = {};
 	var files = [];
 	var styles = [];
 	var stop;
+
+	get_module(start_url, [], function() {
+		end_compite(true, modules, files, styles);
+	});
 
 	function get_module(url, modstack, end) {
 		var virtmod = false;
@@ -334,6 +349,7 @@ function smod(ureq, start_url, end_compite) {
 
 		var modules_total = null;
 		var modules_loaded = 0;
+
 		var xmod = {
 			id: modules.length + 1,
 			loaded: false,
@@ -349,9 +365,35 @@ function smod(ureq, start_url, end_compite) {
 		};
 
 
+		var lineLoad = [];
+		var lineSending = false;
+
+		function loadModuleLine(mod, end) {
+			if (lineSending) {
+				lineLoad.push([mod, end]);
+				return;
+			};
+
+			lineSending = true;
+			loadModule(mod, function(a,b,c) {
+				end(a,b,c);
+
+				lineSending = false;
+
+				var x = lineLoad.pop();
+				if (x) {
+					loadModuleLine(x[0], x[1]);
+					/*
+					process.nextTick(function() {
+						loadModuleLine(x[0], x[1]);
+					});
+					*/
+				};
+			});
+		};
+
 		function loadModule(mod, end) {
 			var x;
-
 
 			if (modstack.indexOf(mod.src) != -1) {
 				stop = true;
@@ -494,7 +536,6 @@ function smod(ureq, start_url, end_compite) {
 
 			j = 0;
 			if (x = mod_json.modules) {
-
 				for (i in x) {
 					var src = x[i];
 
@@ -508,9 +549,9 @@ function smod(ureq, start_url, end_compite) {
 					};
 
 					src = formatURL(xurl, src);
-
-					loadModule(mods[i] = {src: src}
-						, complit
+ 
+					(isLoadModuleLine ? loadModuleLine : loadModule)(mods[i] = {src: src}
+						, complit 
 					);
 
 					j += 1;
@@ -518,14 +559,11 @@ function smod(ureq, start_url, end_compite) {
 			};
 
 			modules_total = j;
+
 			complit(true);
 		});
 
 	};
-
-	get_module(start_url, [], function() {
-		end_compite(true, modules, files, styles);
-	});
 };
 
 
@@ -878,7 +916,7 @@ function styles_pack(url, req, res, cssmin) {
 		end: function() {
 			if (cssmin) {
 				res.write(
-					buffer.join('').replace(/({|;|,|\n)\s+(?=}?)|\/\*([^\*]|\*(?=[^\/]))+\*\/\s*/g, '$1')
+					buffer.join('').replace(/(^|{|;|:|,|\n)\s+(?=}?)|[\t ]+(?=})|\s+(?= {)|\/\*([^\*]|\*(?=[^\/]))+\*\/\s*/g, '$1')
 				);
 
 				buffer.length = 0;
