@@ -43,9 +43,30 @@ process.nextTick(function() {
 
 
 function serverHendler(req, res) {
-	var q = URL.parse(req.url, true);
+	var q = URL.parse(req.url, true), x;
 
 	//console.log(req.headers);
+	
+	
+	if (req.headers['x-real-ip']) {
+		req.X_Forwarded_For = req.headers['x-real-ip'] + (req.headers['x-forwarded-for'] ? ', ' + req.headers['x-forwarded-for'] : '')
+	};
+	
+
+	if (String(q.pathname).indexOf('/test') === 0) {
+		res.writeHead(404
+			, {
+				'Content-Type': 'application/x-javascript; charset=UTF-8',
+				'Cache-Control': 'no-store, no-cache, must-revalidate',
+				'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+			}
+		);
+
+		res.end('// ok');
+
+		console.log(req.headers);
+		return;
+	};
 
 	if (String(q.pathname).indexOf('/file/') === 0) {
 		file_prox(req, res, q);
@@ -101,7 +122,8 @@ function serverHendler(req, res) {
 					, {
 						'Content-Type': 'application/x-javascript; charset=UTF-8',
 						'Cache-Control': 'no-store, no-cache, must-revalidate',
-						'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+						'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT',
+						'X-Forwarded-For': req.X_Forwarded_For
 					}
 				);
 
@@ -188,6 +210,7 @@ function http_query(url, options, end) {
 	var query = {
 		method:'GET',
 		headers: {
+			'x-forwarded-for' : options.x_forwarded_for || null,
 			authorization: options.authorization ? access_domain(src.protocol, src.host, false) ? options.authorization : null : null
 		},
 
@@ -344,6 +367,7 @@ function smod(ureq, start_url, end_compite) {
 				};
 			};
 		};
+		
 
 		var xurl = virtmod ? false : URL.parse(normalizeURL(url));
 
@@ -363,7 +387,6 @@ function smod(ureq, start_url, end_compite) {
 			modulesHash[url] = xmod;
 			modstack.push(url);
 		};
-
 
 		var lineLoad = [];
 		var lineSending = false;
@@ -418,7 +441,7 @@ function smod(ureq, start_url, end_compite) {
 
 				return;
 			};
-			
+
 			var xurl = mod.src;
 
 			get_module(mod.src, modstack.concat(), function(status, id) {
@@ -440,18 +463,18 @@ function smod(ureq, start_url, end_compite) {
 
 			var u, a, i, l, x;
 
+			xmod.langs = mod_json.langs || false;
+			xmod.nowrap = mod_json.nowrap ? true : false; // не обворачивать в модуль
+
 			if (a = mod_json.scripts || mod_json.files) {
 				for(i=0, l = a.length; i<l; i+=1) {
 					if (x = a[i]) {
-
 						files.push({
 							moduleID: xmod.id,
 							id: files.length+1,
-							//src: x
+							nowrap: xmod.nowrap,
 							src: formatURL(xurl, x)
-							
 						});
-
 					};
 				};
 			};
@@ -463,8 +486,6 @@ function smod(ureq, start_url, end_compite) {
 					};
 				};
 			};
-
-			xmod.langs = mod_json.langs || false;
 
 			xmod.de = false;
 
@@ -491,15 +512,15 @@ function smod(ureq, start_url, end_compite) {
 			return;
 		};
 
-		if (!/\.json$/.test(xurl.pathname)) {
+
+		if (/\.js$/.test(xurl.pathname)) {
 			mod_json = {files: [url]};
 			modules_total = 0;
 			complit(true);
 			return;
 		};
 
-
-		http_query(url, {authorization: ureq.headers['authorization']}, function(status, data, type) {
+		http_query(url, {authorization: ureq.headers['authorization'], 'x_forwarded_for': ureq.X_Forwarded_For}, function(status, data, type) {
 			if (stop) return;
 
 			if (status !== true) {
@@ -547,10 +568,11 @@ function smod(ureq, start_url, end_compite) {
 						
 						continue;
 					};
+					
 
 					src = formatURL(xurl, src);
- 
-					(isLoadModuleLine ? loadModuleLine : loadModule)(mods[i] = {src: src}
+
+					(isLoadModuleLine || true ? loadModuleLine : loadModule)(mods[i] = {src: src}
 						, complit 
 					);
 
@@ -623,6 +645,7 @@ function modscript(ureq, url, end) {
 
 		var u
 		, files = []
+		, file, url
 		, a = global_files
 		, qhost = (ureq.headers['x-real-protocol']==='https' ? 'https://' : 'http://') + String(ureq.headers['x-real-host']||ureq.headers.host||'unknown.host')
 		, i = 0
@@ -630,10 +653,27 @@ function modscript(ureq, url, end) {
 		;
 
 		while(x = a[i++]) {
+			files.push(
+				file = {
+					moduleID: x.moduleID, 
+					nowrap: x.nowrap,
+					src: String(x.src)
+				}
+			);
+
+			file.url = x.nowrap ? x.src : url;
+
+			if (x.nowrap) {
+				file.url = x.src;
+				continue;
+			};
+
+
 			var url = qhost+'/file/'+ x.moduleID+'/';
 
 			if (v = MDNAME[x.moduleID]) {
-				url += '' + v.map(encodeURIComponent).join(',');
+				file.vars = v.map(encodeURIComponent).join(',');
+				url += file.vars;
 			};
 
 			var xurl = URL.parse(x.src);
@@ -641,10 +681,10 @@ function modscript(ureq, url, end) {
 			if (xurl.pathname) url += PATH.normalize(xurl.pathname);
 			if (xurl.search) url += xurl.search;
 
-			//console.log(url);
-			files.push(url);
+			file.url = url;
 		};
-		
+
+
 		var styles = false;
 
 		if (a = global_styles) {
@@ -680,17 +720,19 @@ function modscript(ureq, url, end) {
 				, MDURL
 			);
 		};
-		
 	});
 };
 
 
 function write(req, url, end) {
 	modscript(req, url, function(status, code, files, styles) {
+		
 		if (files.length) {
-			code += 'document.write('+JSON.stringify('<script src="' + files.join('"></script><script src="') + '"></script>')+');\n'
-			code += '/*\n scripts\n'+files.join('\n')+'\n*/\n';
+			var _files = files.map(function(v){return v.url});
+			code += 'document.write('+JSON.stringify('<script src="' + _files.join('"></script><script src="') + '"></script>')+');\n'
+			code += '/*\n scripts\n'+_files.join('\n')+'\n*/\n';
 		};
+		
 
 		if (styles) {
 			var s = [], a, i;
@@ -725,6 +767,8 @@ function script_pack(url, req, res, jmin, langKey) {
 	;
 
 	var xreq = {
+		X_Forwarded_For: req.X_Forwarded_For || null,
+
 		headers: {
 			'user-agent': (req.headers||false)['user-agent'],
 			'authorization': (req.headers||false)['authorization']
@@ -787,7 +831,7 @@ function script_pack(url, req, res, jmin, langKey) {
 	};
 
 
-	modscript(req, url, function(status, code, _files, _styles, _langs) {
+	modscript(req, url, function(status, code, _files, _styles, _langs, _MDURL) {
 		if (status !== true) {
 			res.writeHead(404, {
 				'content-type': 'application/x-javascript; charset=UTF-8'
@@ -796,6 +840,7 @@ function script_pack(url, req, res, jmin, langKey) {
 			res.end('//404');
 			return;
 		};
+		
 
 
 		res.writeHead(200, {
@@ -806,7 +851,6 @@ function script_pack(url, req, res, jmin, langKey) {
 
 		files = _files;
 		langs = _langs;
-
 		next();
 	});
 
@@ -824,32 +868,25 @@ function script_pack(url, req, res, jmin, langKey) {
 
 		} while(!file);
 
-		
+		var shead = '', sfoot = '', url, q;
 
-		var q = URL.parse(file, true), qm;
+		if (typeof file === 'object') {
+			modID = file.moduleID;
 
-		if (String(q.pathname).indexOf('/file/') === 0) {
-			qm = String(q.path).match(/\/file\/(\d+)\/([^\/]*)\/(https?)\/(.+)/);
-			/*
-			qm[1] - module ID
-			qm[2] - module vars
-			qm[3] - src protocol
-			qm[4] - src
-			*/
+			if (file.nowrap) {
+				url = file.url;
+				shead = '';
+				sfoot = '';
 
-			if (!qm) {
-				res.write('\n\n/* url: http://' + qm[4] + ' -- error -- */\n');
-				return next();
+			} else {
+				url = file.src;
+
+				shead = '__MODULE('+file.moduleID+', function(global,'+file.vars+'){\'use strict\';'
+				sfoot = '\nreturn [global,'+file.vars+']});'
 			};
 
+			var q = URL.parse(url);
 
-			if (!qm[2]) qm[2] = 'module';
-			if (qm[2][0] === '-') qm[2] = qm[2].replace('-', 'module');
-
-			modID = +qm[1] || 0;
-
-			var q = URL.parse((qm[3] == 'https' ? 'https://' : 'http://') + qm[4], true)
-			
 			if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
 				res.write('\n\n/* ------ BAD: ' + file + ' */\n'); 
 				return next();
@@ -860,15 +897,11 @@ function script_pack(url, req, res, jmin, langKey) {
 				return next();
 			};
 
-			res.write('\n\n/* url: ' + String('http://' + qm[4]).replace(/^https?:\/\/[^\/]+/, '---') + ' */\n');
+			res.write('\n\n/* url: ' + String(url).replace(/^https?:\/\/[^\/]+/, '---') + ' */\n');
 
-			prox(q.href, xreq, xres, false
-				, '__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';'
-				, '\nreturn [global,'+qm[2]+']});'
-			);
+			prox(url, xreq, xres, false, shead, sfoot);
 
-		} else {
-			next();
+			return;
 		};
 	};
 
@@ -887,6 +920,8 @@ function styles_pack(url, req, res, cssmin) {
 	;
 
 	var xreq = {
+		X_Forwarded_For: req.X_Forwarded_For || null,
+
 		headers: {
 			'user-agent': (req.headers||false)['user-agent'],
 			'authorization': (req.headers||false)['authorization']
@@ -1010,6 +1045,8 @@ function script_langs(url, req, res, jmin, langKey) {
 	;
 
 	var xreq = {
+		X_Forwarded_For: req.X_Forwarded_For || null,
+
 		headers: {
 			'user-agent': (req.headers||false)['user-agent'],
 			'authorization': (req.headers||false)['authorization']
@@ -1122,28 +1159,25 @@ function script_langs(url, req, res, jmin, langKey) {
 		} while(!file);
 
 		
+		var shead = '', sfoot = '', url, q;
 
-		var q = URL.parse(file, true), qm;
+		if (typeof file === 'object') {
+			modID = file.moduleID;
 
-		if (String(q.pathname).indexOf('/file/') === 0) {
-			qm = String(q.path).match(/\/file\/(\d+)\/([^\/]*)\/(https?)\/(.+)/);
+			if (file.nowrap) {
+				url = file.url;
+				shead = '';
+				sfoot = '';
 
-			if (!qm) {
-				// res.write('\n\n/* url: http://' + qm[4] + ' -- error -- */\n');
-				return next();
+			} else {
+				url = file.src;
+
+				shead = '__MODULE('+file.moduleID+', function(global,'+file.vars+'){\'use strict\';'
+				sfoot = '\nreturn [global,'+file.vars+']});'
 			};
 
+			var q = URL.parse(url);
 
-			if (!qm[2]) qm[2] = 'module';
-			if (qm[2][0] === '-') qm[2] = qm[2].replace('-', 'module');
-
-			modID = +qm[1] || 0;
-
-			//res.write('\n\n/* url: http://' + qm[4] + ' */\n');
-			
-			//var q = URL.parse('http://' + qm[4], true)
-			var q = URL.parse((qm[3] == 'https' ? 'https://' : 'http://') + qm[4], true)
-			
 			if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
 				//res.write('\n\n/* ------ BAD: ' + file + ' */\n'); 
 				return next();
@@ -1154,10 +1188,11 @@ function script_langs(url, req, res, jmin, langKey) {
 				return next();
 			};
 
-			prox(q.href, xreq, xres, false, null, null);
+			//res.write('\n\n/* url: ' + String(url).replace(/^https?:\/\/[^\/]+/, '---') + ' */\n');
 
-		} else {
-			next();
+			prox(url, xreq, xres, false, shead, sfoot);
+
+			return;
 		};
 	};
 
@@ -1297,6 +1332,10 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 		if (access_domain(q.protocol, q.host)) {
 			headers['Authorization'] = x;
 		};
+	};
+
+	if (x = svreq.X_Forwarded_For ) {
+		headers['X-Forwarded-For'] = x;
 	};
 
 	var options = { 
