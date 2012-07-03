@@ -613,7 +613,7 @@ function modscript(ureq, url, end) {
 
 			//var dep = [], nms = [], de = x.de, v, i;
 			var u
-			, nms = [x.alias ? String(x.alias) : '-']
+			, nms = [x.alias ? String(x.alias) : 'module']
 			, de = x.de
 			, dep = []
 			, v, i
@@ -671,6 +671,7 @@ function modscript(ureq, url, end) {
 
 			var url = qhost+'/file/'+ x.moduleID+'/';
 
+			file.vars = 'module';
 			if (v = MDNAME[x.moduleID]) {
 				file.vars = v.map(encodeURIComponent).join(',');
 				url += file.vars;
@@ -880,9 +881,10 @@ function script_pack(url, req, res, jmin, langKey) {
 
 			} else {
 				url = file.src;
+				
 
-				shead = '__MODULE('+file.moduleID+', function(global,'+file.vars+'){\'use strict\';'
-				sfoot = '\nreturn [global,'+file.vars+']});'
+				shead = '__MODULE('+file.moduleID+', function(global,'+(file.vars||'module')+'){\'use strict\';'
+				sfoot = '\nreturn [global,'+(file.vars||'module')+']});'
 			};
 
 			var q = URL.parse(url);
