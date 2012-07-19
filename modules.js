@@ -48,52 +48,52 @@ function serverHendler(req, res) {
 	//console.log(req.headers);
 
 	if (req.headers['x-real-ip']) {
-	req.X_Forwarded_For = req.headers['x-real-ip'] + (req.headers['x-forwarded-for'] ? ', ' + req.headers['x-forwarded-for'] : '')
+		req.X_Forwarded_For = req.headers['x-real-ip'] + (req.headers['x-forwarded-for'] ? ', ' + req.headers['x-forwarded-for'] : '')
 	};
 	
 
 	if (String(q.pathname).indexOf('/stoop') === 0) {
-	return;
+		return;
 	};
-	
-	
+
+
 	if (String(q.pathname).indexOf('/test') === 0) {
-	res.writeHead(404
-		, {
-		'Content-Type': 'application/x-javascript; charset=UTF-8',
-		'Cache-Control': 'no-store, no-cache, must-revalidate',
-		'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
-		}
-	);
+		res.writeHead(404
+			, {
+			'Content-Type': 'application/x-javascript; charset=UTF-8',
+			'Cache-Control': 'no-store, no-cache, must-revalidate',
+			'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+			}
+		);
 
-	res.end('// ok');
+		res.end('// ok');
 
-	console.log(req.headers);
-	return;
+		if (config.log) console.log(req.headers);
+		return;
 	};
 
 	if (String(q.pathname).indexOf('/file/') === 0) {
-	file_prox(req, res, q);
-	return;
+		file_prox(req, res, q);
+		return;
 	};
 
 
 	if (q.query.auth !== 'base') {
-	if (req.headers['authorization']) req.headers['authorization'] = null;
+		if (req.headers['authorization']) req.headers['authorization'] = null;
 	} else {
-	if (!req.headers['authorization']) {
-		res.writeHead(401
-		, {
-			'Content-Type': 'application/x-javascript; charset=UTF-8',
-			'Cache-Control': 'no-store, no-cache, must-revalidate',
-			'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT',
-			'WWW-Authenticate': 'Basic realm="Password Required"'
-		}
-		);
+		if (!req.headers['authorization']) {
+			res.writeHead(401
+				, {
+					'Content-Type': 'application/x-javascript; charset=UTF-8',
+					'Cache-Control': 'no-store, no-cache, must-revalidate',
+					'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT',
+					'WWW-Authenticate': 'Basic realm="Password Required"'
+				}
+			);
 
-		res.end();
-		return;
-	};
+			res.end();
+			return;
+		};
 	};
 
 
@@ -207,7 +207,7 @@ function parse_cookie(s) {
 function http_query(url, options, end) {
 	var src = URL.parse(url);
 
-	console.log('mod \t', url);
+	if (config.log) console.log('mod \t', url);
 
 	options = options || false;
 
@@ -553,7 +553,6 @@ function smod(ureq, start_url, end_compite) {
 			};
 			
 			console.log(e);
-
 		};
 
 
@@ -1025,7 +1024,7 @@ function styles_pack(url, req, res, cssmin) {
 
 		//res.write('\n\n/* url: ' + file + ' */\n');
 		//res.write('\n\n/* url: ' + file.replace(/^http:\/\/[^\/]+/, function(x) {return crypto.createHash('md5').update(x).digest('hex').substr(-7)}) + ' */\n');
-		res.write('\n\n/* url: ' + file.replace(/^http:\/\/[^\/]+/, '---') + ' */\n');
+		res.write('\n\n/* url: ' + file.replace(/^https?:\/\/[^\/]+/, '---') + ' */ \n');
 		
 	
 
@@ -1317,7 +1316,7 @@ setInterval(function() {
 */
 
 function prox(url, svreq, svres, UTFBOM, xA, xB) {
-	console.log('prox \t', url);
+	if (config.log) console.log('prox \t', url);
 
 	var q = URL.parse(url, true), x;
 	var headers = {host: String(q.host)};
