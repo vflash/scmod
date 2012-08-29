@@ -1,7 +1,8 @@
 ﻿'use strict';
 
 
-var config = require('./config.js');
+var log = console.log;
+var config = require('./config.js')||false;
 var HTTP = require('http');
 var HTTPS = require('https');
 var URL = require('url');
@@ -10,10 +11,19 @@ var qs = require('querystring');
 var jsmin = require('./jsmin.js');
 //var crypto = require('crypto');
 
+//config.strict
+
+
+process.nextTick(function() {
+	HTTP.createServer(serverHendler).listen(config.port||1777, config.host||'127.0.0.1');
+	console.log('Server running at http://'+(config.host||'127.0.0.1')+':'+(config.port||1777)+'/');
+});
+
+
 //HTTP.globalAgent.maxSockets = 1;
 HTTPS.globalAgent.maxSockets = 1;
 
-
+// fix for progressive download
 HTTPS.globalAgent.addRequest = function(req, host, port) {
   var name = host + ':' + port;
   if (!this.sockets[name]) this.sockets[name] = [];
@@ -31,14 +41,6 @@ HTTPS.globalAgent.addRequest = function(req, host, port) {
 
 
 
-
-var log = console.log;
-
-
-process.nextTick(function() {
-	HTTP.createServer(serverHendler).listen(config.port, "127.0.0.1");
-	console.log('Server running at http://127.0.0.1:'+(config.port)+'/');
-});
 
 
 
@@ -122,6 +124,7 @@ function serverHendler(req, res) {
 
 
 		write(req, src, function(status, code) {
+
 		res.writeHead(200
 			, {
 			'Content-Type': 'application/x-javascript; charset=UTF-8',
