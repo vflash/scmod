@@ -1,8 +1,7 @@
 ﻿'use strict';
 
 
-var log = console.log;
-var config = require('./config.js')||false;
+var config = require('./config.js');
 var HTTP = require('http');
 var HTTPS = require('https');
 var URL = require('url');
@@ -11,19 +10,10 @@ var qs = require('querystring');
 var jsmin = require('./jsmin.js');
 //var crypto = require('crypto');
 
-//config.strict
-
-
-process.nextTick(function() {
-	HTTP.createServer(serverHendler).listen(config.port||1777, config.host||'127.0.0.1');
-	console.log('Server running at http://'+(config.host||'127.0.0.1')+':'+(config.port||1777)+'/');
-});
-
-
 //HTTP.globalAgent.maxSockets = 1;
 HTTPS.globalAgent.maxSockets = 1;
 
-// fix for progressive download
+
 HTTPS.globalAgent.addRequest = function(req, host, port) {
   var name = host + ':' + port;
   if (!this.sockets[name]) this.sockets[name] = [];
@@ -41,6 +31,15 @@ HTTPS.globalAgent.addRequest = function(req, host, port) {
 
 
 
+
+var log = console.log;
+
+
+process.nextTick(function() {
+	//HTTP.createServer(serverHendler).listen(config.port, "127.0.0.1");
+	HTTP.createServer(serverHendler).listen(config.port, config.host||'127.0.0.1');
+	console.log('Server running at http://'+(config.host||'127.0.0.1')+':'+(config.port)+'/');
+});
 
 
 
@@ -124,7 +123,6 @@ function serverHendler(req, res) {
 
 
 		write(req, src, function(status, code) {
-
 		res.writeHead(200
 			, {
 			'Content-Type': 'application/x-javascript; charset=UTF-8',
@@ -353,246 +351,243 @@ function smod(ureq, start_url, end_compite) {
 	var stop;
 
 	get_module(start_url, [], function() {
-	end_compite(true, modules, files, styles);
+		end_compite(true, modules, files, styles);
 	});
 
 	function get_module(url, modstack, end) {
-	var virtmod = false;
+		var virtmod = false;
 
-	if (url === true) {
-		virtmod = true;
-
-	} else {
-		if (!/^https?:\/\//.test(url)) {
-		if (String(url).substr(0,7) == 'global:') {
+		if (url === true) {
 			virtmod = true;
-		} else
-		if (String(url).substr(0,2) == '//') {
-			url = normalizeURL('http' + url);
+
 		} else {
-			url = normalizeURL('http://' + url);
-		};
-		};
-	};
-	
-
-	var xurl = virtmod ? false : URL.parse(normalizeURL(url));
-
-	var modules_total = null;
-	var modules_loaded = 0;
-
-	var xmod = {
-		id: modules.length + 1,
-		loaded: false,
-		waiting: [],
-		src: url
-	};
-
-	modules.push(xmod);
-
-	if (url !== true) {
-		modulesHash[url] = xmod;
-		modstack.push(url);
-	};
-
-	var lineLoad = [];
-	var lineSending = false;
-
-	function loadModuleLine(mod, end) {
-		if (lineSending) {
-		lineLoad.push([mod, end]);
-		return;
-		};
-
-		lineSending = true;
-		loadModule(mod, function(a,b,c) {
-		end(a,b,c);
-
-		lineSending = false;
-
-		var x = lineLoad.pop();
-		if (x) {
-			loadModuleLine(x[0], x[1]);
-			/*
-			process.nextTick(function() {
-			loadModuleLine(x[0], x[1]);
-			});
-			*/
-		};
-		});
-	};
-
-	function loadModule(mod, end) {
-		var x;
-
-		if (modstack.indexOf(mod.src) != -1) {
-		stop = true;
-		//console.log(modstack.concat([mod.src]))
-		end_compite(false, modstack.concat([mod.src]));
-		return;
-		};
-
-		if (x = search(modules, mod.src) ) {
-
-		mod.id = x.id;
-		if (x.loaded ) {
-			modules_loaded += 1;
-			return end(true);
-		};
-
-		x.waiting.push(function() {
-			modules_loaded += 1;
-
-			end(true);
-		});
-
-		return;
-		};
-
-		var xurl = mod.src;
-
-		get_module(mod.src, modstack.concat(), function(status, id) {
-		modules_loaded += 1;
-
-		mod.id = id;
-		end(true);
-		});
-	};
-
-	var mod_json, mods = {};
-	
-	function complit() {
-		if (stop || modules_total != modules_loaded) {
-		return;
-		};
-
-		//log('complit mod', url);
-
-		var u, a, i, l, x;
-
-		xmod.langs = mod_json.langs || false;
-		xmod.nowrap = mod_json.nowrap ? true : false; // не обворачивать в модуль
-
-		if (a = mod_json.scripts || mod_json.files) {
-		for(i=0, l = a.length; i<l; i+=1) {
-			if (x = a[i]) {
-			files.push({
-				moduleID: xmod.id,
-				id: files.length+1,
-				nowrap: xmod.nowrap,
-				src: formatURL(xurl, x)
-			});
+			if (!/^https?:\/\//.test(url)) {
+				if (String(url).substr(0,7) == 'global:') {
+					virtmod = true;
+				} else
+				if (String(url).substr(0,2) == '//') {
+					url = normalizeURL('http' + url);
+				} else {
+					url = normalizeURL('http://' + url);
+				};
 			};
-		};
-		};
-
-		if (a = mod_json.styles) {
-		for(i=0, l = a.length; i<l; i+=1) {
-			if (x = a[i]) {
-			styles.push(formatURL(xurl, x));
-			};
-		};
-		};
-
-		xmod.de = false;
-
-		for(i in mods) {
-		xmod.de = mods;
-		break;
 		};
 		
 
-		// log(xmod.waiting);
-		if (!xmod.waiting) console.log(xmod);
-		while(x = xmod.waiting.pop()) x();
-		delete(xmod.waiting);
+		var xurl = virtmod ? false : URL.parse(normalizeURL(url));
 
+		var modules_total = null;
+		var modules_loaded = 0;
 
-		xmod.loaded = true;
-		end(true, xmod.id);
-	};
+		var xmod = {
+			id: modules.length + 1,
+			loaded: false,
+			waiting: [],
+			src: url
+		};
 
-	if (virtmod) {
-		modules_total = modules_loaded;
-		mod_json = {};
-		complit(true);
-		return;
-	};
+		modules.push(xmod);
 
+		if (url !== true) {
+			modulesHash[url] = xmod;
+			modstack.push(url);
+		};
 
-	if (/\.js$/.test(xurl.pathname)) {
-		mod_json = {files: [url]};
-		modules_total = 0;
-		complit(true);
-		return;
-	};
+		var lineLoad = [];
+		var lineSending = false;
 
-	http_query(url, {authorization: ureq.headers['authorization'], 'x_forwarded_for': ureq.X_Forwarded_For}, function(status, data, type) {
-		if (stop) return;
-
-		if (status !== true) {
-			modules_total = 0;
-			mod_json = {
-				error: 'not load module - ' + url,
+		function loadModuleLine(mod, end) {
+			if (lineSending) {
+			lineLoad.push([mod, end]);
+			return;
 			};
 
+			lineSending = true;
+			loadModule(mod, function(a,b,c) {
+				end(a,b,c);
+
+				lineSending = false;
+
+				var x = lineLoad.pop();
+				if (x) {
+					loadModuleLine(x[0], x[1]);
+				};
+			});
+		};
+
+		function loadModule(mod, end) {
+			var x;
+
+			if (modstack.indexOf(mod.src) != -1) {
+				stop = true;
+				//console.log(modstack.concat([mod.src]))
+
+				end_compite(false
+					, modstack.concat([mod.src])
+				);
+
+				return;
+			};
+
+			if (x = search(modules, mod.src) ) {
+				mod.id = x.id;
+				if (x.loaded ) {
+					modules_loaded += 1;
+					return end(true);
+				};
+
+				x.waiting.push(function() {
+					modules_loaded += 1;
+
+					end(true);
+				});
+
+				return;
+			};
+
+			var xurl = mod.src;
+
+			get_module(mod.src, modstack.concat(), function(status, id) {
+				modules_loaded += 1;
+
+				mod.id = id;
+				end(true);
+			});
+		};
+
+		var mod_json, mods = {};
+		
+		function complit() {
+			if (stop || modules_total != modules_loaded) {
+				return;
+			};
+
+			//log('complit mod', url);
+
+			var u, a, i, l, x;
+
+			xmod.langs = mod_json.langs || false;
+			xmod.nowrap = mod_json.nowrap ? true : false; // не обворачивать в модуль
+
+			if (a = mod_json.scripts || mod_json.files) {
+				for(i=0, l = a.length; i<l; i+=1) {
+					if (x = a[i]) {
+						files.push({
+							moduleID: xmod.id,
+							id: files.length+1,
+							nowrap: xmod.nowrap,
+							src: formatURL(xurl, x)
+						});
+					};
+				};
+			};
+
+			if (a = mod_json.styles) {
+			for(i=0, l = a.length; i<l; i+=1) {
+				if (x = a[i]) {
+				styles.push(formatURL(xurl, x));
+				};
+			};
+			};
+
+			xmod.de = false;
+
+			for(i in mods) {
+			xmod.de = mods;
+			break;
+			};
+			
+
+			// log(xmod.waiting);
+			if (!xmod.waiting) console.log(xmod);
+			while(x = xmod.waiting.pop()) x();
+			delete(xmod.waiting);
+
+
+			xmod.loaded = true;
+			end(true, xmod.id);
+		};
+
+		if (virtmod) {
+			modules_total = modules_loaded;
+			mod_json = {};
 			complit(true);
 			return;
 		};
 
-		var json, x, i, j,v;
 
+		if (/\.js$/.test(xurl.pathname)) {
+			mod_json = {files: [url]};
+			modules_total = 0;
+			complit(true);
+			return;
+		};
 
+		http_query(url, {authorization: ureq.headers['authorization'], 'x_forwarded_for': ureq.X_Forwarded_For}, function(status, data, type) {
+			if (stop) return;
 
-		try {
-			data = jsmin("", String(data).trim(), 2);
-			if (data.indexOf('{')) data = data.substr(data.indexOf('{'));
-			mod_json = JSON.parse(data);
+			if (status !== true) {
+				modules_total = 0;
+				mod_json = {
+					error: 'not load module - ' + url,
+				};
 
-		} catch (e) {
-			mod_json = {
-				error: 'invalid json',
-				errmsg: String(e)
+				complit(true);
+				return;
 			};
-			
-			console.log(e);
-		};
+
+			var json, x, i, j,v;
 
 
-		if (mod_json.alias) {
-			xmod.alias = String(mod_json.alias);
-		};
 
+			try {
+				data = jsmin("", String(data).trim(), 2);
+				if (data.indexOf('{')) data = data.substr(data.indexOf('{'));
+				mod_json = JSON.parse(data);
 
-		j = 0;
-		if (x = mod_json.modules) {
-		for (i in x) {
-			var src = x[i];
-
-			if (!src || typeof src !== 'string') {
-			//mods[i] = {id:0}; 
-			modules.push(
-				mods[i] = {id: modules.length + 1,src: false}
-			);
-			
-			continue;
+			} catch (e) {
+				mod_json = {
+					error: 'invalid json',
+					errmsg: String(e)
+				};
+				
+				console.log(e);
 			};
-			
 
-			src = formatURL(xurl, src);
 
-			(isLoadModuleLine || true ? loadModuleLine : loadModule)(mods[i] = {src: src}
-				, complit 
-			);
+			if (mod_json.alias) {
+				xmod.alias = String(mod_json.alias);
+			};
 
-			j += 1;
-		};
-		};
 
-		modules_total = j;
+			j = 0;
+			if (x = mod_json.modules) {
+				for (i in x) {
+					var src = x[i];
 
-		complit(true);
-	});
+					if (!src || typeof src !== 'string') {
+						modules.push(
+							mods[i] = {id: modules.length + 1, src: false}
+						);
+
+						continue;
+					};
+
+
+					src = formatURL(xurl, src);
+
+					(isLoadModuleLine || true ? loadModuleLine : loadModule)(mods[i] = {src: src}
+						, complit 
+					);
+
+					j += 1;
+				};
+			};
+
+			modules_total = j;
+
+			complit(true);
+		});
 
 	};
 };
@@ -948,14 +943,17 @@ function styles_pack(url, req, res, cssmin) {
 		writeHead: function(status) {
 			if (status === 200) return;
 			prx = false;
+
+			res.write('/* error load, status: '+status+' */\n\n')
+			//res.write('/* stop compile */\n')
 		},
 
 		write: function(chunk) {
 			// if (prx) res.write(chunk);
 			if (cssmin) {
-			if (prx) buffer.push(chunk);
+			    if (prx) buffer.push(chunk);
 			} else {
-			if (prx) res.write(chunk);
+			    if (prx) res.write(chunk);
 			};
 			
 		},
@@ -1031,6 +1029,7 @@ function styles_pack(url, req, res, cssmin) {
 		
 	
 
+		prx = true;
 		prox(String(file), xreq, xres, false
 			, ''
 			, ''
@@ -1419,14 +1418,12 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 		//console.log(headers);
 
 		svres.writeHead(200, headers);
-		
-		
+
 		var first = true;
 		var datastart = true;
 		//response.setEncoding('utf8');
 	
 		response.on('data', function(chunk) {
-			//console.log(chunk)
 			if (first) {
 				first = false;
 
@@ -1449,7 +1446,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 
 		response.on('end', function() {
 			if (datastart) {
-				svres.write('// file null');
+				svres.write('/* file null */');
 			} else {
 				svres.write(xB);
 			};

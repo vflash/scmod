@@ -1,12 +1,12 @@
 {
-	"name" : "easysax",
-	"description": "pure javascript xml parser",
-	"keywords": "xml, sax",
-	"version": "0.1.8",
-	"main" : "./easysax.js",
+	"name" : "scmod",
+	"description": "client side javascript modules",
+	"keywords": ["javascript", "modules"],
+	"version": "0.1.6",
+	"main" : "./module.js",
 
 	"bugs": {
-		"url": "https://github.com/vflash/easysax/issues"
+		"url": "https://github.com/vflash/scmod/issues"
 	},
 
 	"author":{ 
@@ -15,11 +15,11 @@
 		"url" : "http://vflash.ru"
 	},
 	
-	"files":["easysax.js", "LICENSE"],
+	"files":["modules.js", "config.js", "jsmin.js", "LICENSE"],
 	
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/vflash/easysax"
+		"url": "https://github.com/vflash/scmod"
 	}
 
 }
