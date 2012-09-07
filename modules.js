@@ -101,17 +101,18 @@ function serverHendler(req, res) {
 	var src = q.query.src || '';
 
 	if (/^https?:\/\//.test(src) ) {
-	src = normalizeURL(src);
-	} else
-	if ((src[0] == '.' || src[0] == '/') && String(req.headers['referer']).indexOf('http://') === 0 ) {
-	src = formatURL(URL.parse(String(req.headers['referer'])), src);
+		src = normalizeURL(src);
 	} else {
-	src = false;
+		if ((src[0] == '.' || src[0] == '/') && String(req.headers['referer']).indexOf('http://') === 0 ) {
+			src = formatURL(URL.parse(String(req.headers['referer'])), src);
+		} else {
+			src = false;
+		};
 	};
 
-	
+
 	if (!src) {
-	return endres(res, 404);
+		return endres(res, 404);
 	};
 	
 
@@ -861,60 +862,58 @@ function script_pack(url, req, res, jmin, langKey) {
 	});
 
 	function next() {
-	var i;
+		var i;
 
-	do {
-		i = ++file_index;
-		if (i >= files.length || !files.length) {
-		complite();
-		return;
+		do {
+			i = ++file_index;
+			if (i >= files.length || !files.length) {
+				complite();
+				return;
+			};
+
+			file = files[i];
+
+		} while(!file);
+
+		if (typeof file !== 'object') {
+			complite();
+			return;
 		};
 
-		file = files[i];
-
-	} while(!file);
-
-	var shead = '', sfoot = '', url, q;
-
-	if (typeof file === 'object') {
 		modID = file.moduleID;
 
-		if (file.nowrap) {
-		url = file.url;
-		shead = '';
-		sfoot = '';
+		var u
+		, url = file.src
+		, q = URL.parse(url)
+		, shead = ''
+		, sfoot = ''
+		;
 
-		} else {
-		url = file.src;
-		
 
-		shead = '__MODULE('+file.moduleID+', function(global,'+(file.vars||'module')+'){\'use strict\';'
-		sfoot = '\nreturn [global,'+(file.vars||'module')+']});'
+		if (!file.nowrap) {
+			shead = '__MODULE('+file.moduleID+', function(global,'+(file.vars||'module')+'){\'use strict\';\n'
+			sfoot = '\nreturn [global,'+(file.vars||'module')+']});'
 		};
 
-		var q = URL.parse(url);
 
 		if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
-		res.write('\n\n/* ------ BAD: ' + file + ' */\n'); 
-		return next();
+			res.write('\n\n/* ------ BAD: ' + url + ' */\n'); 
+			return next();
 		};
 
 		if ( !(q.protocol === 'http:' || q.protocol === 'https:') ) {
-		res.write('\n\n/* ------ BAD: ' + file + ' */\n');
-		return next();
+			res.write('\n\n/* ------ BAD: ' + url + ' */\n');
+			return next();
 		};
 
 		res.write('\n\n/* url: ' + String(url).replace(/^https?:\/\/[^\/]+/, '---') + ' */\n');
 
 		prox(url, xreq, xres, false, shead, sfoot);
-
-		return;
-	};
 	};
 
 	function complite() {
-	res.write('\n\n__MODULE=null;');
-	res.end();
+		res.write('\n\n__MODULE=null;');
+		res.end();
 	};
 };
 
@@ -1030,6 +1029,7 @@ function styles_pack(url, req, res, cssmin) {
 	
 
 		prx = true;
+
 		prox(String(file), xreq, xres, false
 			, ''
 			, ''
@@ -1154,55 +1154,45 @@ function script_langs(url, req, res, jmin, langKey) {
 	});
 
 	function next() {
-	var i;
+		var i;
 
-	do {
-		i = ++file_index;
-		if (i >= files.length || !files.length) {
-		complite();
-		return;
-		};
+		do {
+			i = ++file_index;
 
-		file = files[i];
-
-	} while(!file);
-
-	
-	var shead = '', sfoot = '', url, q;
-
-		if (typeof file === 'object') {
-			modID = file.moduleID;
-
-			if (file.nowrap) {
-				url = file.url;
-				shead = '';
-				sfoot = '';
-
-			} else {
-				url = file.src;
-
-				shead = '__MODULE('+file.moduleID+', function(global,'+file.vars+'){\'use strict\';'
-				sfoot = '\nreturn [global,'+file.vars+']});'
+			if (i >= files.length || !files.length) {
+				complite();
+				return;
 			};
 
-			var q = URL.parse(url);
+			file = files[i];
 
-			if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
-				//res.write('\n\n/* ------ BAD: ' + file + ' */\n'); 
-				return next();
-			};
+		} while(!file);
 
-			if ( !(q.protocol === 'http:' || q.protocol === 'https:') ) {
-				//res.write('\n\n/* ------ BAD: ' + file + ' */\n');
-				return next();
-			};
-
-			//res.write('\n\n/* url: ' + String(url).replace(/^https?:\/\/[^\/]+/, '---') + ' */\n');
-
-			prox(url, xreq, xres, false, shead, sfoot);
-
+		if (typeof file !== 'object') {
+			complite();
 			return;
 		};
+		
+		var u
+		, shead = ''
+		, sfoot = ''
+		, url = file.src
+		, q = URL.parse(url)
+		;
+
+		modID = file.moduleID;
+
+		if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
+			//res.write('\n\n/* ------ BAD: ' + file + ' */\n'); 
+			return next();
+		};
+
+		if ( !(q.protocol === 'http:' || q.protocol === 'https:') ) {
+			//res.write('\n\n/* ------ BAD: ' + file + ' */\n');
+			return next();
+		};
+
+		prox(url, xreq, xres, false, shead, sfoot);
 	};
 
 	function complite() {
@@ -1360,7 +1350,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 	client.setTimeout(4000, function() {
 		svres.writeHead(500, {});
 		svres.end('503');
-		
+
 		console.log('error - 503');
 	});
 
@@ -1415,20 +1405,27 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 			delete(headers['content-length']);
 		};
 
-		//console.log(headers);
+		if (headers['transfer-encoding']) {
+			delete(headers['transfer-encoding']);
+		};
 
 		svres.writeHead(200, headers);
 
 		var first = true;
 		var datastart = true;
+
 		//response.setEncoding('utf8');
-	
+
+
+
+
 		response.on('data', function(chunk) {
 			if (first) {
 				first = false;
 
 				if (chunk[0] == 0xEF && chunk[1] == 0xBB && chunk[2] == 0xBF ) {
 					if (UTFBOM) svres.write(chunk.slice(0, 3));
+
 					chunk = chunk.slice(3);
 				};
 			};
@@ -1450,8 +1447,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 			} else {
 				svres.write(xB);
 			};
-			//svres.write(xB);
-			
+
 			svres.end();
 		}); 
 	});
@@ -1528,7 +1524,10 @@ function file_prox(req, res, q) {
 	};
 
 	if (!qm[2]) qm[2] = 'module';
-	if (qm[2][0] === '-') qm[2] = qm[2].replace('-', 'module');
+
+	if (qm[2][0] === '-') {
+		qm[2] = qm[2].replace('-', 'module');
+	};
 
 	prox(file, req, res, true
 		, '__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';'

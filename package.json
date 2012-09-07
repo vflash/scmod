@@ -2,7 +2,7 @@
 	"name" : "scmod",
 	"description": "client side javascript modules",
 	"keywords": ["javascript", "modules"],
-	"version": "0.1.6",
+	"version": "0.1.7",
 	"main" : "./module.js",
 
 	"bugs": {
