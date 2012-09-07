@@ -4,6 +4,7 @@ var config = false;
 try {
 	config = require('./config.js');
 } catch(e) {
+	config = require('./config-sample.js');
 };
 
 
@@ -68,9 +69,9 @@ function serverHendler(req, res) {
 	if (String(q.pathname).indexOf('/test') === 0) {
 		res.writeHead(404
 			, {
-			'Content-Type': 'application/x-javascript; charset=UTF-8',
-			'Cache-Control': 'no-store, no-cache, must-revalidate',
-			'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+				'Content-Type': 'application/x-javascript; charset=UTF-8',
+				'Cache-Control': 'no-store, no-cache, must-revalidate',
+				'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
 			}
 		);
 
@@ -129,18 +130,17 @@ function serverHendler(req, res) {
 	case '/sandbox': case '/write': case '/dev':
 		req.isLoadModuleLine = false;
 
-
 		write(req, src, function(status, code) {
-		res.writeHead(200
-			, {
-			'Content-Type': 'application/x-javascript; charset=UTF-8',
-			'Cache-Control': 'no-store, no-cache, must-revalidate',
-			'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT',
-			'X-Forwarded-For': req.X_Forwarded_For
-			}
-		);
+			res.writeHead(200
+				, {
+					'Content-Type': 'application/x-javascript; charset=UTF-8',
+					'Cache-Control': 'no-store, no-cache, must-revalidate',
+					'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT',
+					'X-Forwarded-For': req.X_Forwarded_For
+				}
+			);
 
-		res.end(code);
+			res.end(code);
 		});
 		return;
 
