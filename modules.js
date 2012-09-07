@@ -1,7 +1,12 @@
 ﻿'use strict';
 
+var config = false;
+try {
+	config = require('./config.js');
+} catch(e) {
+};
 
-var config = require('./config.js');
+
 var HTTP = require('http');
 var HTTPS = require('https');
 var URL = require('url');
@@ -9,6 +14,8 @@ var PATH = require('path');
 var qs = require('querystring');
 var jsmin = require('./jsmin.js');
 //var crypto = require('crypto');
+
+
 
 //HTTP.globalAgent.maxSockets = 1;
 HTTPS.globalAgent.maxSockets = 1;
