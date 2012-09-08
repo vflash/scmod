@@ -2,7 +2,7 @@
 	"name" : "scmod",
 	"description": "client side javascript modules",
 	"keywords": ["javascript", "modules"],
-	"version": "0.1.10",
+	"version": "0.1.11",
 	"main" : "./module.js",
 
 	"bugs": {
@@ -15,7 +15,7 @@
 		"url" : "http://vflash.ru"
 	},
 	
-	"files":["modules.js", "config-sample.js", "jsmin.js", "LICENSE"],
+	"files":["modules.js", "config-sample.js", "jsmin.js", "LICENSE", ".npmignore"],
 	
 	"repository": {
 		"type": "git",

@@ -1,12 +1,25 @@
 ﻿'use strict';
 
-var config = false;
-try {
-	config = require('./config.js');
-} catch(e) {
-	config = require('./config-sample.js');
-};
+var config = (function() {
+		var x
+		, a = ['./config.js', '/usr/local/etc/scmod/config.js', '/etc/scmod/config.js']
+		, i = 0
+		;
 
+        while(x = a[i++]){
+                try {
+                        x = require(x);
+                        return x;
+                } catch(e) {};
+        };
+		
+		x = require('config-simple.js');
+        return x;
+})();
+
+
+
+var log = console.log;
 
 var HTTP = require('http');
 var HTTPS = require('https');
@@ -16,31 +29,34 @@ var qs = require('querystring');
 var jsmin = require('./jsmin.js');
 //var crypto = require('crypto');
 
+//process.setMaxListeners(0);
 
 
 //HTTP.globalAgent.maxSockets = 1;
 HTTPS.globalAgent.maxSockets = 1;
 
-
 HTTPS.globalAgent.addRequest = function(req, host, port) {
-  var name = host + ':' + port;
+  var name = host + ':' + port, x;
   if (!this.sockets[name]) this.sockets[name] = [];
   
   if (!this.sockets[name].length || (this.requests[name]||false).length > (3 + this.sockets[name].length * 7)  ) {
 	// If we are under maxSockets create a new one.
 	req.onSocket(this.createSocket(name, host, port));
+	
+	//x.setMaxListeners(0)
+	
+	//console.log(x.setMaxListeners);
 
   } else {
 	// We are over limit so we'll add it to the queue.
 	if (!this.requests[name]) this.requests[name] = [];
 	this.requests[name].push(req);
-  }
+  };
 };
 
 
 
 
-var log = console.log;
 
 
 process.nextTick(function() {
@@ -156,7 +172,10 @@ function serverHendler(req, res) {
 	case '/langs':
 		req.isLoadModuleLine = false;
 
-		script_langs(src, req, res, true, q.query.lang ? String(q.query.lang) : false);
+		script_langs(src, req, res
+			, q.query.lang ? String(q.query.lang) : false
+		);
+
 		return;
 
 	default:
@@ -216,64 +235,63 @@ function parse_cookie(s) {
 function http_query(url, options, end) {
 	var src = URL.parse(url);
 
-	if (config.log) console.log('mod \t', url);
+	if (config.log) log('mod \t', url);
 
 	options = options || false;
 
 	var query = {
-	method:'GET',
-	headers: {
-		'x-forwarded-for' : options.x_forwarded_for || null,
-		authorization: options.authorization ? access_domain(src.protocol, src.host, false) ? options.authorization : null : null
-	},
+		method:'GET',
+		headers: {
+			'x-forwarded-for' : options.x_forwarded_for || null,
+			authorization: options.authorization ? access_domain(src.protocol, src.host, false) ? options.authorization : null : null
+		},
 
-	host: src.host,
-	port: src.protocol === 'https:' ? 443 : 80,
-	path: src.path
+		host: src.host,
+		port: src.protocol === 'https:' ? 443 : 80,
+		path: src.path
 	};
 
 
 	var comp = false;
 
 	function err() {
-	if (!comp) {
-		comp = true;
-		end();
-	};
+		if (!comp) {
+			comp = true;
+			end();
+		};
 	};
 
 	var client = src.protocol === 'https:' ? HTTPS.request(query) : HTTP.request(query);
+
 
 	client.setTimeout(4000, err);
 	client.on("error", err);
 
 	client.on('response'
-	, function(res) {
+		, function(res) {
+			if (res.statusCode !== 200) {
+				comp = true;
+				return void(end(res.statusCode));
+			};
 
+			var contentType = (res.headers['content-type']||'').split(';')[0];
+			var data = '';
 
-		if (res.statusCode !== 200) {
-		comp = true;
-		return void(end(res.statusCode));
-		};
+			res.setEncoding('utf8');  
 
-		var contentType = (res.headers['content-type']||'').split(';')[0];
-		var data = '';
+			res.on('data', function(c) {
+				data += c;
+			});
 
-		res.setEncoding('utf8');  
+			res.on('end', function() {
+				var token = false, x;
 
-		res.on('data', function(c) {
-		data += c;
-		});
+				if (comp) return;
+				comp = true;
 
-		res.on('end', function() {
-		var token = false, x;
-
-		if (comp) return;
-		comp = true;
-
-		end(true, data, contentType);
-		});
-	}
+				end(true, data, contentType);
+			});
+		}
 	);
 	
 	client.end();
@@ -302,11 +320,11 @@ function search(modules, url) {
 	var i = modules.length, x;
 	
 	while(i--) {
-	x = modules[i];
+		x = modules[i];
 
-	if (x && x.src === url) {
-		return x;
-	};
+		if (x && x.src === url) {
+			return x;
+		};
 	};
 	
 	return false;
@@ -315,17 +333,16 @@ function search(modules, url) {
 function formatURL(xurl, src) {
 
 	if (src[0] == '.') {
-	return xurl.protocol + '//' + xurl.host + PATH.normalize((xurl.pathname||'/') + '/../'+src);
+		return xurl.protocol + '//' + xurl.host + PATH.normalize((xurl.pathname||'/') + '/../'+src);
 	} else 
 	if (src[0] == '/') {
-	return xurl.protocol + '//' + xurl.host + PATH.normalize(src);
+		return xurl.protocol + '//' + xurl.host + PATH.normalize(src);
 	} else 
 	if (src.substr(0, 3) == '://') {
-	src = xurl.protocol + src.substr(1);
+		src = xurl.protocol + src.substr(1);
 	} else 
 	if (String(src).indexOf(':') === -1 ) {
-	
-	return xurl.protocol + '//' + xurl.host + PATH.normalize((xurl.pathname||'/') + '/../'+src);
+		return xurl.protocol + '//' + xurl.host + PATH.normalize((xurl.pathname||'/') + '/../'+src);
 	};
 
 	return normalizeURL(src);
@@ -334,10 +351,10 @@ function formatURL(xurl, src) {
 function normalizeURL(url) {
 	var xurl = URL.parse(String(url).trim());
 	switch(xurl.protocol) {
-	case 'http:': case 'https:':
-		break;
-	default:
-		return url;
+		case 'http:': case 'https:':
+			break;
+		default:
+			return url;
 	};
 
 
@@ -406,8 +423,8 @@ function smod(ureq, start_url, end_compite) {
 
 		function loadModuleLine(mod, end) {
 			if (lineSending) {
-			lineLoad.push([mod, end]);
-			return;
+				lineLoad.push([mod, end]);
+				return;
 			};
 
 			lineSending = true;
@@ -491,24 +508,26 @@ function smod(ureq, start_url, end_compite) {
 			};
 
 			if (a = mod_json.styles) {
-			for(i=0, l = a.length; i<l; i+=1) {
-				if (x = a[i]) {
-				styles.push(formatURL(xurl, x));
+				for(i=0, l = a.length; i<l; i+=1) {
+					if (x = a[i]) {
+					styles.push(formatURL(xurl, x));
+					};
 				};
-			};
 			};
 
 			xmod.de = false;
 
 			for(i in mods) {
-			xmod.de = mods;
-			break;
+				xmod.de = mods;
+				break;
 			};
-			
 
-			// log(xmod.waiting);
-			if (!xmod.waiting) console.log(xmod);
+			if (!xmod.waiting) {
+				console.log(xmod);
+			};
+
 			while(x = xmod.waiting.pop()) x();
+
 			delete(xmod.waiting);
 
 
@@ -605,167 +624,163 @@ function smod(ureq, start_url, end_compite) {
 //write('http://zz7a.com/js/moon/moon.json', func)
 function modscript(ureq, url, end) {
 	smod(ureq, url, function(status, global_modules, global_files, global_styles) {
+		if (status !== true) {
+			if (typeof end == 'function') end();
+			return;
+		};
 
-	if (status !== true) {
-		if (typeof end == 'function') end();
-		return;
-	};
+		var DEPEND = {};
+		var MDNAME = {};
+		var MDURL = {};
+		var MDS = {};
+		var langs = {};
 
-	var DEPEND = {};
-	var MDNAME = {};
-	var MDURL = {};
-	var MDS = {};
-	var langs = {};
+		global_modules.forEach(function(x) {
+			MDS[x.id] = {};
+			MDURL[x.id] = x.src;
 
-	global_modules.forEach(function(x) {
-		MDS[x.id] = {};
-		MDURL[x.id] = x.src;
+			langs[x.id] = x.langs || false;
 
-		langs[x.id] = x.langs || false;
+			//var dep = [], nms = [], de = x.de, v, i;
+			var u
+			, nms = [x.alias ? String(x.alias) : 'module']
+			, de = x.de
+			, dep = []
+			, v, i
+			;
 
-		//var dep = [], nms = [], de = x.de, v, i;
+			for (i in de) {
+				if (v = de[i]) {
+					if (i[0] === '_') continue;
+					
+					nms.push(i);
+					dep.push(v.id);
+				};
+			};
+
+			if (dep.length) {
+				DEPEND[x.id] = dep;
+			};
+
+			MDNAME[x.id] = nms;
+		});
+
+
+		//log('--------------------------------');
+		//log(MDS);
+		//log(DEPEND);
+
+
 		var u
-		, nms = [x.alias ? String(x.alias) : 'module']
-		, de = x.de
-		, dep = []
-		, v, i
+		, files = []
+		, file, url
+		, a = global_files
+		, qhost = ((ureq.headers['x-scmod-scheme']||ureq.headers['x-real-protocol'])==='https' ? 'https://' : 'http://') 
+			+ String(ureq.headers['x-scmod-host']||ureq.headers.host||'unknown.host')
+		, i = 0
+		, x, v
 		;
 
-		
+		while(x = a[i++]) {
+			files.push(
+				file = {
+					moduleID: x.moduleID, 
+					nowrap: x.nowrap,
+					src: String(x.src)
+				}
+			);
 
-		for (i in de) {
-		if (v = de[i]) {
-			if (i[0] === '_') continue;
-			
-			nms.push(i);
-			dep.push(v.id);
-		};
-		};
+			file.url = x.nowrap ? x.src : url;
 
-		if (dep.length) {
-		DEPEND[x.id] = dep;
-		};
-
-		MDNAME[x.id] = nms;
-	});
+			if (x.nowrap) {
+				file.url = x.src;
+				continue;
+			};
 
 
-	//log('--------------------------------');
-	//log(MDS);
-	//log(DEPEND);
+			var url = qhost+'/file/'+ x.moduleID+'/';
 
+			file.vars = 'module';
+			if (v = MDNAME[x.moduleID]) {
+				file.vars = v.map(encodeURIComponent).join(',');
+				url += file.vars;
+			};
 
-	var u
-	, files = []
-	, file, url
-	, a = global_files
-	, qhost = ((ureq.headers['x-scmod-scheme']||ureq.headers['x-real-protocol'])==='https' ? 'https://' : 'http://') 
-		+ String(ureq.headers['x-scmod-host']||ureq.headers.host||'unknown.host')
-	, i = 0
-	, x, v
-	;
+			var xurl = URL.parse(x.src);
+			url += '/' + (xurl.protocol == 'https:' ? 'https' : 'http')+'/'+xurl.host;
+			if (xurl.pathname) url += PATH.normalize(xurl.pathname);
+			if (xurl.search) url += xurl.search;
 
-	while(x = a[i++]) {
-		files.push(
-			file = {
-				moduleID: x.moduleID, 
-				nowrap: x.nowrap,
-				src: String(x.src)
-			}
-		);
-
-		file.url = x.nowrap ? x.src : url;
-
-		if (x.nowrap) {
-			file.url = x.src;
-			continue;
+			file.url = url;
 		};
 
 
-		var url = qhost+'/file/'+ x.moduleID+'/';
+		var styles = false;
 
-		file.vars = 'module';
-		if (v = MDNAME[x.moduleID]) {
-			file.vars = v.map(encodeURIComponent).join(',');
-			url += file.vars;
+		if (a = global_styles) {
+			for(styles = [], i = 0; x = a[i++];) {
+				styles.push(x);
+			};
+
+			if (!styles.length) {
+				styles = false;
+			};
 		};
 
-		var xurl = URL.parse(x.src);
-		url += '/' + (xurl.protocol == 'https:' ? 'https' : 'http')+'/'+xurl.host;
-		if (xurl.pathname) url += PATH.normalize(xurl.pathname);
-		if (xurl.search) url += xurl.search;
 
-		file.url = url;
-	};
+			// '<script src=""></script>'
+		var jscode = '';
+
+		jscode += 'var __MODULE=(function(){var global=window'
+			+',MODULES='+JSON.stringify(MDS)
+			+',DEPEND='+JSON.stringify(DEPEND)
+			+',depend={}'
+			+';\n'
+			+'return ' + jsmin("", String(__MODULE).trim(), 2).trim()
+			+ '})();\n'
+		;
 
 
-	var styles = false;
-
-	if (a = global_styles) {
-		for(styles = [], i = 0; x = a[i++];) {
-		styles.push(x);
+		if (typeof end == 'function') {
+			end(true
+				, jscode
+				, files
+				, styles
+				, langs
+				, MDURL
+			);
 		};
-
-		if (!styles.length) {
-		styles = false;
-		};
-	};
-
-
-		// '<script src=""></script>'
-	var jscode = '';
-
-	jscode += 'var __MODULE=(function(){var global=window'
-		+',MODULES='+JSON.stringify(MDS)
-		+',DEPEND='+JSON.stringify(DEPEND)
-		+',depend={}'
-		+';\n'
-		+'return ' + jsmin("", String(__MODULE).trim(), 2).trim()
-		+ '})();\n'
-	;
-
-
-	if (typeof end == 'function') {
-		end(true
-		, jscode
-		, files
-		, styles
-		, langs
-		, MDURL
-		);
-	};
 	});
 };
 
 
 function write(req, url, end) {
 	modscript(req, url, function(status, code, files, styles) {
-	
-	if (files.length) {
-		var _files = files.map(function(v){return v.url});
-		code += 'document.write('+JSON.stringify('<script src="' + _files.join('"></script><script src="') + '"></script>')+');\n'
-		code += '/*\n scripts\n'+_files.join('\n')+'\n*/\n';
-	};
-	
+		if (files.length) {
+			var _files = files.map(function(v){return v.url});
+			code += 'document.write('+JSON.stringify('<script src="' + _files.join('"></script><script src="') + '"></script>')+');\n'
+			code += '/*\n scripts\n'+_files.join('\n')+'\n*/\n';
+		};
+		
 
-	if (styles) {
-		var s = [], a, i;
+		if (styles) {
+			var s = [], a, i;
 
-		for (i=0; i < styles.length; i+=30) {
-		s.push('<style type="text/css">\n'
-			+ styles.slice(i, i+30).map(function(x) {return '@import url('+JSON.stringify(String(x))+');\n'}).join('')
-			+ '</style>'
-		);
+			for (i=0; i < styles.length; i+=30) {
+				s.push('<style type="text/css">\n'
+					+ styles.slice(i, i+30).map(function(x) {return '@import url('+JSON.stringify(String(x))+');\n'}).join('')
+					+ '</style>'
+				);
+			};
+
+			code += '\ndocument.write('+JSON.stringify(s.join(''))+');\n';
+			code += '/*\n styles\n'+styles.join('\n')+'\n*/\n\n';
 		};
 
-		code += '\ndocument.write('+JSON.stringify(s.join(''))+');\n';
-		code += '/*\n styles\n'+styles.join('\n')+'\n*/\n\n';
-	};
 
-
-	if (typeof end == 'function') {
-		end(true, code);
-	};
+		if (typeof end == 'function') {
+			end(true, code);
+		};
 	});
 };
 
@@ -792,80 +807,79 @@ function script_pack(url, req, res, jmin, langKey) {
 	var buffer = [];
 
 	var xres = {
-	writeHead: function(status) {
-		if (status === 200) return;
+		writeHead: function(status) {
+			if (status === 200) return;
 
-		prx = false;
-	},
+			prx = false;
+		},
 
-	write: function(chunk) {
-		if (jmin) {
-		if (prx) buffer.push(chunk);
-		} else {
-		if (prx) res.write(chunk);
-		};
-	},
+		write: function(chunk) {
+			if (jmin) {
+				if (prx) buffer.push(chunk);
+			} else {
+				if (prx) res.write(chunk);
+			};
+		},
 
-	end: function() {
-		if (jmin) {
-		var code = '', lang, x;
+		end: function() {
+			if (jmin) {
+				var code = '', lang, x;
 
-		try {
-			code = jsmin("", buffer.join(''), 1);
-		} catch (e) {
-			res.write('jsmin error');
-		};
+				try {
+					code = jsmin("", buffer.join(''), 1);
+				} catch (e) {
+					res.write('jsmin error');
+				};
 
-		buffer.length = 0;
+				buffer.length = 0;
 
-		if (lang = langKey ? langs[modID] : false) {
-			
-			code = code.replace(/\/\*([^*]|\*(?=[^\/]))+\*\/|\/(\\\\|\\\/|[^\/\n])+\/|\'(\\\\|\\\'|[^\'])*'|\"(\\\\|\\\"|[^\"])*\"/g
-				, function(x) {
-					if (x.charCodeAt(0) !== 34) return x;
+				if (lang = langKey ? langs[modID] : false) {
+					
+					code = code.replace(/\/\*([^*]|\*(?=[^\/]))+\*\/|\/(\\\\|\\\/|[^\/\n])+\/|\'(\\\\|\\\'|[^\'])*'|\"(\\\\|\\\"|[^\"])*\"/g
+						, function(x) {
+							if (x.charCodeAt(0) !== 34) return x;
 
-					try {
-						var vs = lang[JSON.parse(x)] || false;
-					} catch (e) {
-						console.log('ups JSON.parse(lang)');
-						return x;
-					};
+							try {
+								var vs = lang[JSON.parse(x)] || false;
+							} catch (e) {
+								console.log('ups JSON.parse(lang)');
+								return x;
+							};
 
-					return typeof vs[langKey] === 'string' ? JSON.stringify(vs[langKey]) : x;
-				}
-			);
-		};
+							return typeof vs[langKey] === 'string' ? JSON.stringify(vs[langKey]) : x;
+						}
+					);
+				};
 
-		res.write(code);
-		};
+				res.write(code);
+			};
 
-
-		next();
-	}
+			next();
+		}
 	};
 
 
 	modscript(req, url, function(status, code, _files, _styles, _langs, _MDURL) {
-	if (status !== true) {
-		res.writeHead(404, {
-		'content-type': 'application/x-javascript; charset=UTF-8'
+		if (status !== true) {
+			res.writeHead(404, {
+			'content-type': 'application/x-javascript; charset=UTF-8'
+			});
+
+			res.end('//404');
+			return;
+		};
+		
+
+
+		res.writeHead(200, {
+			'content-type': 'application/x-javascript; charset=UTF-8'
 		});
 
-		res.end('//404');
-		return;
-	};
-	
+		res.write(code);
 
-
-	res.writeHead(200, {
-		'content-type': 'application/x-javascript; charset=UTF-8'
-	});
-
-	res.write(code);
-
-	files = _files;
-	langs = _langs;
-	next();
+		files = _files;
+		langs = _langs;
+		next();
 	});
 
 	function next() {
@@ -1050,7 +1064,7 @@ function styles_pack(url, req, res, cssmin) {
 
 
 
-function script_langs(url, req, res, jmin, langKey) {
+function script_langs(url, req, res, langsFor) {
 	var u
 	, prx = true
 	, file_index = -1
@@ -1061,6 +1075,25 @@ function script_langs(url, req, res, jmin, langKey) {
 	, file
 	, modID
 	;
+
+	
+	var langsFor = (function() {
+		var m = [];
+		
+		if (typeof langsFor === 'string') {
+			langsFor.split(',').forEach(function(v) {
+				if (v = String(v).trim()) {
+					if (m.indexOf('v') === -1) {
+						m.push(v);
+					};
+				};
+			});
+		};
+
+		if (m.length < 1) m.push('en')
+		return m;
+	})();
+
 
 	var xreq = {
 		X_Forwarded_For: req.X_Forwarded_For || null,
@@ -1075,60 +1108,52 @@ function script_langs(url, req, res, jmin, langKey) {
 
 	var xres = {
 		writeHead: function(status) {
-			if (status === 200) return;
-
-			prx = false;
+			prx = status === 200;
 		},
 
 		write: function(chunk) {
-			if (jmin) {
-				if (prx) buffer.push(chunk);
-			} else {
-				if (prx) res.write(chunk);
-			};
+			if (prx) buffer.push(chunk);
 		},
 
 		end: function() {
-			if (jmin) {
-				var code = '', lang, x;
+			var code = '', lang, x;
+
+			try {
+				code = jsmin("", buffer.join(''), 1);
+			} catch (e) {
+				res.write('jsmin error');
+			};
+
+			buffer.length = 0;
+
+
+			var m = code.match(/\/\*([^*]|\*(?=[^\/]))+\*\/|\/(\\\\|\\\/|[^\/\n])+\/|\'(\\\\|\\\'|[^\'])*'|\"(\\\\|\\\"|[^\"])*\"/g) || false;
+			var l = m.length, i = 0, x;
+
+			var lang_new = LNG[modID] || {};
+			var lang_old = langs[modID] || false;
+
+			for(; i < l; i++)  {
+				x = m[i];
+
+				if (x.charCodeAt(0) !== 34) continue;
 
 				try {
-					code = jsmin("", buffer.join(''), 1);
+					x = JSON.parse(x)
 				} catch (e) {
-					res.write('jsmin error');
+					console.log('ups JSON.parse(lang)');
+					continue;
 				};
 
-				buffer.length = 0;
+				LNG[modID] = lang_new;
 
-
-				var m = code.match(/\/\*([^*]|\*(?=[^\/]))+\*\/|\/(\\\\|\\\/|[^\/\n])+\/|\'(\\\\|\\\'|[^\'])*'|\"(\\\\|\\\"|[^\"])*\"/g) || false;
-				var l = m.length, i = 0, x;
-
-				var lang_new = LNG[modID] || {};
-				var lang_old = langs[modID] || false;
-
-				for(; i < l; i++)  {
-					x = m[i];
-
-					if (x.charCodeAt(0) !== 34) continue;
-
-					try {
-						x = JSON.parse(x)
-					} catch (e) {
-						console.log('ups JSON.parse(lang)');
-						continue;
-					};
-
-					LNG[modID] = lang_new;
-
-					if (typeof lang_new[x] !== 'object') {
-						var xs = lang_new[x] = {};
-						
-						['vn', 'en'].map(function(v) {
-							var vp = (lang_old[x]||false)[v];
-							xs[v] = typeof vp === 'string' ? vp : null;
-						});
-					};
+				if (typeof lang_new[x] !== 'object') {
+					var xs = lang_new[x] = {};
+					
+					langsFor.forEach(function(v) {
+						var vp = (lang_old[x]||false)[v];
+						xs[v] = typeof vp === 'string' ? vp : null;
+					});
 				};
 			};
 
@@ -1203,16 +1228,16 @@ function script_langs(url, req, res, jmin, langKey) {
 	};
 
 	function complite() {
-	var r = {}, i, x;
+		var r = {}, i, x;
 
-	for (i in LNG) {
-		if (typeof mdurl[i] === 'string') {
-			r[mdurl[i]] = LNG[i];
+		for (i in LNG) {
+			if (typeof mdurl[i] === 'string') {
+				r[mdurl[i]] = LNG[i];
+			};
 		};
-	};
 
-	res.write(JSON.stringify(r, null, "\t"));
-	res.end();
+		res.write(JSON.stringify(r, null, "\t"));
+		res.end();
 	};
 };
 
