@@ -146,7 +146,7 @@ function serverHendler(req, res) {
 	case '/sandbox': case '/write': case '/dev':
 		req.isLoadModuleLine = false;
 
-		write(req, src, function(status, code) {
+		sandbox(req, src, function(status, code) {
 			res.writeHead(200
 				, {
 					'Content-Type': 'application/x-javascript; charset=UTF-8',
@@ -173,7 +173,7 @@ function serverHendler(req, res) {
 		req.isLoadModuleLine = false;
 
 		script_langs(src, req, res
-			, q.query.lang ? String(q.query.lang) : false
+			, q.query['for'] ? String(q.query['for']) : false
 		);
 
 		return;
@@ -185,10 +185,23 @@ function serverHendler(req, res) {
 };
 
 
+function newErrorLogs() {
+	var log = '';
+
+	return function(type, value, x) {
+		if (type == null) {
+			return (log ? '\n/* ERROR COMPILE:\n' + log : '\n/* COMPILE OK ') +'*/';
+		};
+
+		if(type === 'error') {
+			log += String(value)+'\n';
+		};
+	}
+};
+
 
 
 var auth_domains = config.auth_domains ? String(config.auth_domains).split(/\s+/) : false
-
 function access_domain(protocol, host, allowed_domains) {
 	if (protocol !== 'https:') return false;
 
@@ -234,8 +247,6 @@ function parse_cookie(s) {
 
 function http_query(url, options, end) {
 	var src = URL.parse(url);
-
-	if (config.log) log('mod \t', url);
 
 	options = options || false;
 
@@ -367,7 +378,7 @@ function normalizeURL(url) {
 
 
 
-function smod(ureq, start_url, end_compite) {
+function smod(log, ureq, start_url, end_compite) {
 	var isLoadModuleLine = ureq.isLoadModuleLine ? true : false;
 	var modules = [];
 	var modulesHash = {};
@@ -421,6 +432,97 @@ function smod(ureq, start_url, end_compite) {
 		var lineLoad = [];
 		var lineSending = false;
 
+		var mod_json, mods = {};
+
+		if (virtmod) {
+			modules_total = modules_loaded;
+
+			mod_json = {};
+
+			complit(true);
+			return;
+		};
+
+
+		if (/\.js$/.test(xurl.pathname)) {
+			mod_json = {files: [url]};
+			modules_total = 0;
+
+			complit(true);
+			return;
+		};
+
+		if (config.log) console.log('mod \t', url);
+
+		http_query(url, {authorization: ureq.headers['authorization'], 'x_forwarded_for': ureq.X_Forwarded_For}
+			, function(status, data, type) {
+				if (stop) return;
+
+				if (status !== true) {
+					modules_total = 0;
+					mod_json = false;
+
+					log('error'
+						, xmod.error = 'error load '+(status)+', module - ' + url
+					);
+
+					complit(false);
+					return;
+				};
+
+				var x, i, j,v;
+
+				try {
+					data = jsmin("", String(data).trim(), 2);
+					if (data.indexOf('{') ) {
+						data = data.substr(data.indexOf('{'));
+					};
+
+					mod_json = JSON.parse(data);
+
+				} catch (e) {
+					mod_json = false;
+
+					log('error'
+						, xmod.error = 'error json, module - ' + url
+					);
+				};
+
+
+				if (mod_json.alias) {
+					xmod.alias = String(mod_json.alias);
+				};
+
+				j = 0;
+				if (x = mod_json.modules) {
+					for (i in x) {
+						var src = x[i];
+
+						if (!src || typeof src !== 'string') {
+							modules.push(
+								mods[i] = {id: modules.length + 1, src: false}
+							);
+
+							continue;
+						};
+
+
+						src = formatURL(xurl, src);
+
+						(isLoadModuleLine || true ? loadModuleLine : loadModule)(mods[i] = {src: src}
+							, complit 
+						);
+
+						j += 1;
+					};
+				};
+
+				modules_total = j;
+
+				complit(true);
+			}
+		);
+
 		function loadModuleLine(mod, end) {
 			if (lineSending) {
 				lineLoad.push([mod, end]);
@@ -445,7 +547,10 @@ function smod(ureq, start_url, end_compite) {
 
 			if (modstack.indexOf(mod.src) != -1) {
 				stop = true;
-				//console.log(modstack.concat([mod.src]))
+
+				log('error', 'error recursive load modules:\n - '
+					+ modstack.join('\n - ') + '\n - ' + mod.src
+				);
 
 				end_compite(false
 					, modstack.concat([mod.src])
@@ -480,14 +585,14 @@ function smod(ureq, start_url, end_compite) {
 			});
 		};
 
-		var mod_json, mods = {};
-		
+
+		var _complite = false;
 		function complit() {
-			if (stop || modules_total != modules_loaded) {
+			if (stop || _complite|| modules_total != modules_loaded) {
 				return;
 			};
 
-			//log('complit mod', url);
+			_complite = true;
 
 			var u, a, i, l, x;
 
@@ -510,7 +615,7 @@ function smod(ureq, start_url, end_compite) {
 			if (a = mod_json.styles) {
 				for(i=0, l = a.length; i<l; i+=1) {
 					if (x = a[i]) {
-					styles.push(formatURL(xurl, x));
+						styles.push(formatURL(xurl, x));
 					};
 				};
 			};
@@ -530,236 +635,171 @@ function smod(ureq, start_url, end_compite) {
 
 			delete(xmod.waiting);
 
-
 			xmod.loaded = true;
+
 			end(true, xmod.id);
 		};
-
-		if (virtmod) {
-			modules_total = modules_loaded;
-			mod_json = {};
-			complit(true);
-			return;
-		};
-
-
-		if (/\.js$/.test(xurl.pathname)) {
-			mod_json = {files: [url]};
-			modules_total = 0;
-			complit(true);
-			return;
-		};
-
-		http_query(url, {authorization: ureq.headers['authorization'], 'x_forwarded_for': ureq.X_Forwarded_For}, function(status, data, type) {
-			if (stop) return;
-
-			if (status !== true) {
-				modules_total = 0;
-				mod_json = {
-					error: 'not load module - ' + url,
-				};
-
-				complit(true);
-				return;
-			};
-
-			var json, x, i, j,v;
-
-
-
-			try {
-				data = jsmin("", String(data).trim(), 2);
-				if (data.indexOf('{')) data = data.substr(data.indexOf('{'));
-				mod_json = JSON.parse(data);
-
-			} catch (e) {
-				mod_json = {
-					error: 'invalid json',
-					errmsg: String(e)
-				};
-				
-				console.log(e);
-			};
-
-
-			if (mod_json.alias) {
-				xmod.alias = String(mod_json.alias);
-			};
-
-
-			j = 0;
-			if (x = mod_json.modules) {
-				for (i in x) {
-					var src = x[i];
-
-					if (!src || typeof src !== 'string') {
-						modules.push(
-							mods[i] = {id: modules.length + 1, src: false}
-						);
-
-						continue;
-					};
-
-
-					src = formatURL(xurl, src);
-
-					(isLoadModuleLine || true ? loadModuleLine : loadModule)(mods[i] = {src: src}
-						, complit 
-					);
-
-					j += 1;
-				};
-			};
-
-			modules_total = j;
-
-			complit(true);
-		});
-
 	};
 };
 
 
 
 //write('http://zz7a.com/js/moon/moon.json', func)
-function modscript(ureq, url, end) {
-	smod(ureq, url, function(status, global_modules, global_files, global_styles) {
-		if (status !== true) {
-			if (typeof end == 'function') end();
-			return;
-		};
+function modscript(log, ureq, url, end) {
+	smod(log||function(){}, ureq, url
+		, function(status, global_modules, global_files, global_styles) {
+			if (status !== true) {
+				if (typeof end == 'function') end(false);
+				return;
+			};
 
-		var DEPEND = {};
-		var MDNAME = {};
-		var MDURL = {};
-		var MDS = {};
-		var langs = {};
+			var DEPEND = {};
+			var MDNAME = {};
+			var MDURL = {};
+			var MDS = {};
+			var langs = {};
 
-		global_modules.forEach(function(x) {
-			MDS[x.id] = {};
-			MDURL[x.id] = x.src;
 
-			langs[x.id] = x.langs || false;
+			global_modules.forEach(function(x) {
+				MDS[x.id] = {};
+				MDURL[x.id] = x.src;
 
-			//var dep = [], nms = [], de = x.de, v, i;
+				langs[x.id] = x.langs || false;
+
+				//var dep = [], nms = [], de = x.de, v, i;
+				var u
+				, nms = [x.alias ? String(x.alias) : 'module']
+				, de = x.de
+				, dep = []
+				, v, i
+				;
+
+				for (i in de) {
+					if (v = de[i]) {
+						if (i[0] === '_') continue;
+						
+						nms.push(i);
+						dep.push(v.id);
+					};
+				};
+
+				if (dep.length) {
+					DEPEND[x.id] = dep;
+				};
+
+				MDNAME[x.id] = nms;
+			});
+
+
+			//log('--------------------------------');
+			//log(MDS);
+			//log(DEPEND);
+
+
 			var u
-			, nms = [x.alias ? String(x.alias) : 'module']
-			, de = x.de
-			, dep = []
-			, v, i
+			, files = []
+			, file, url
+			, a = global_files
+			, qhost = ((ureq.headers['x-scmod-scheme']||ureq.headers['x-real-protocol'])==='https' ? 'https://' : 'http://') 
+				+ String(ureq.headers['x-scmod-host']||ureq.headers.host||'unknown.host')
+			, i = 0
+			, x, v
 			;
 
-			for (i in de) {
-				if (v = de[i]) {
-					if (i[0] === '_') continue;
-					
-					nms.push(i);
-					dep.push(v.id);
+			while(x = a[i++]) {
+				files.push(
+					file = {
+						moduleID: x.moduleID, 
+						nowrap: x.nowrap,
+						src: String(x.src)
+					}
+				);
+
+				file.url = x.nowrap ? x.src : url;
+
+				if (x.nowrap) {
+					file.url = x.src;
+					continue;
+				};
+
+
+				var url = qhost+'/file/'+ x.moduleID+'/';
+
+				file.vars = 'module';
+				if (v = MDNAME[x.moduleID]) {
+					file.vars = v.map(encodeURIComponent).join(',');
+					url += file.vars;
+				};
+
+				var xurl = URL.parse(x.src);
+				url += '/' + (xurl.protocol == 'https:' ? 'https' : 'http')+'/'+xurl.host;
+				if (xurl.pathname) url += PATH.normalize(xurl.pathname);
+				if (xurl.search) url += xurl.search;
+
+				file.url = url;
+			};
+
+
+			var styles = false;
+
+			if (a = global_styles) {
+				for(styles = [], i = 0; x = a[i++];) {
+					styles.push(x);
+				};
+
+				if (!styles.length) {
+					styles = false;
 				};
 			};
 
-			if (dep.length) {
-				DEPEND[x.id] = dep;
+
+				// '<script src=""></script>'
+			var jscode = '';
+
+			jscode += 'var __MODULE=(function(){var global=window'
+				+',MODULES='+JSON.stringify(MDS)
+				+',DEPEND='+JSON.stringify(DEPEND)
+				+',depend={}'
+				+';\n'
+				+'return ' + jsmin("", String(__MODULE).trim(), 2).trim()
+				+ '})();\n'
+			;
+
+
+			if (typeof end == 'function') {
+				end(true
+					, jscode
+					, files
+					, styles
+					, langs
+					, MDURL
+				);
 			};
-
-			MDNAME[x.id] = nms;
-		});
-
-
-		//log('--------------------------------');
-		//log(MDS);
-		//log(DEPEND);
-
-
-		var u
-		, files = []
-		, file, url
-		, a = global_files
-		, qhost = ((ureq.headers['x-scmod-scheme']||ureq.headers['x-real-protocol'])==='https' ? 'https://' : 'http://') 
-			+ String(ureq.headers['x-scmod-host']||ureq.headers.host||'unknown.host')
-		, i = 0
-		, x, v
-		;
-
-		while(x = a[i++]) {
-			files.push(
-				file = {
-					moduleID: x.moduleID, 
-					nowrap: x.nowrap,
-					src: String(x.src)
-				}
-			);
-
-			file.url = x.nowrap ? x.src : url;
-
-			if (x.nowrap) {
-				file.url = x.src;
-				continue;
-			};
-
-
-			var url = qhost+'/file/'+ x.moduleID+'/';
-
-			file.vars = 'module';
-			if (v = MDNAME[x.moduleID]) {
-				file.vars = v.map(encodeURIComponent).join(',');
-				url += file.vars;
-			};
-
-			var xurl = URL.parse(x.src);
-			url += '/' + (xurl.protocol == 'https:' ? 'https' : 'http')+'/'+xurl.host;
-			if (xurl.pathname) url += PATH.normalize(xurl.pathname);
-			if (xurl.search) url += xurl.search;
-
-			file.url = url;
-		};
-
-
-		var styles = false;
-
-		if (a = global_styles) {
-			for(styles = [], i = 0; x = a[i++];) {
-				styles.push(x);
-			};
-
-			if (!styles.length) {
-				styles = false;
-			};
-		};
-
-
-			// '<script src=""></script>'
-		var jscode = '';
-
-		jscode += 'var __MODULE=(function(){var global=window'
-			+',MODULES='+JSON.stringify(MDS)
-			+',DEPEND='+JSON.stringify(DEPEND)
-			+',depend={}'
-			+';\n'
-			+'return ' + jsmin("", String(__MODULE).trim(), 2).trim()
-			+ '})();\n'
-		;
-
-
-		if (typeof end == 'function') {
-			end(true
-				, jscode
-				, files
-				, styles
-				, langs
-				, MDURL
-			);
-		};
-	});
+		}
+	);
 };
 
 
-function write(req, url, end) {
-	modscript(req, url, function(status, code, files, styles) {
+
+
+function sandbox(req, url, end) {
+	var log = newErrorLogs();
+
+	
+
+	
+	modscript(log, req, url, function(status, code, files, styles) {
+		if (status !== true) {
+			if (typeof end == 'function') {
+				end(false, log());
+			};
+			return;
+		};
+		
 		if (files.length) {
 			var _files = files.map(function(v){return v.url});
 			code += 'document.write('+JSON.stringify('<script src="' + _files.join('"></script><script src="') + '"></script>')+');\n'
-			code += '/*\n scripts\n'+_files.join('\n')+'\n*/\n';
+			code += '/*SCRIPTS:\n'+_files.join('\n')+'\n*/\n';
 		};
 		
 
@@ -774,12 +814,12 @@ function write(req, url, end) {
 			};
 
 			code += '\ndocument.write('+JSON.stringify(s.join(''))+');\n';
-			code += '/*\n styles\n'+styles.join('\n')+'\n*/\n\n';
+			code += '/*STYLES\n'+styles.join('\n')+'\n*/\n\n';
 		};
 
 
 		if (typeof end == 'function') {
-			end(true, code);
+			end(true, code + log() );
 		};
 	});
 };
@@ -787,6 +827,7 @@ function write(req, url, end) {
 
 function script_pack(url, req, res, jmin, langKey) {
 	var u
+	, log = newErrorLogs()
 	, prx = true
 	, file_index = -1
 	, files
@@ -808,9 +849,10 @@ function script_pack(url, req, res, jmin, langKey) {
 
 	var xres = {
 		writeHead: function(status) {
-			if (status === 200) return;
+			if (prx = status === 200) return;
 
-			prx = false;
+			log('error', 'error load '+status + ', file - ' + xres.src);
+			res.write('/* error load '+status+' */');
 		},
 
 		write: function(chunk) {
@@ -828,7 +870,9 @@ function script_pack(url, req, res, jmin, langKey) {
 				try {
 					code = jsmin("", buffer.join(''), 1);
 				} catch (e) {
-					res.write('jsmin error');
+					log('error', 'error jsmin error, file - ' + xres.src);
+
+					res.write('/* jsmin error */');
 				};
 
 				buffer.length = 0;
@@ -842,7 +886,7 @@ function script_pack(url, req, res, jmin, langKey) {
 							try {
 								var vs = lang[JSON.parse(x)] || false;
 							} catch (e) {
-								console.log('ups JSON.parse(lang)');
+								//console.log('ups JSON.parse(lang)');
 								return x;
 							};
 
@@ -859,28 +903,31 @@ function script_pack(url, req, res, jmin, langKey) {
 	};
 
 
-	modscript(req, url, function(status, code, _files, _styles, _langs, _MDURL) {
-		if (status !== true) {
-			res.writeHead(404, {
-			'content-type': 'application/x-javascript; charset=UTF-8'
+	modscript(log, req, url
+		, function(status, code, _files, _styles, _langs, _MDURL) {
+			if (status !== true) {
+				res.writeHead(200, {
+					'content-type': 'application/x-javascript; charset=UTF-8'
+				});
+
+				res.end(log());
+				return;
+			};
+			
+
+
+			res.writeHead(200, {
+				'content-type': 'application/x-javascript; charset=UTF-8'
 			});
 
-			res.end('//404');
-			return;
-		};
-		
+			res.write(code);
 
+			files = _files;
+			langs = _langs;
 
-		res.writeHead(200, {
-			'content-type': 'application/x-javascript; charset=UTF-8'
-		});
-
-		res.write(code);
-
-		files = _files;
-		langs = _langs;
-		next();
-	});
+			next();
+		}
+	);
 
 	function next() {
 		var i;
@@ -929,17 +976,20 @@ function script_pack(url, req, res, jmin, langKey) {
 
 		res.write('\n\n/* url: ' + String(url).replace(/^https?:\/\/[^\/]+/, '---') + ' */\n');
 
-		prox(url, xreq, xres, false, shead, sfoot);
+		prox(xres.src = url, xreq, xres, false, shead, sfoot);
 	};
 
 	function complite() {
-		res.write('\n\n__MODULE=null;');
+		//res.write('\n\n__MODULE=null;');
+
+		res.write('\n'+log() );
 		res.end();
 	};
 };
 
 function styles_pack(url, req, res, cssmin) {
 	var u
+	, log = newErrorLogs()
 	, prx = true
 	, file_index = -1
 	, files
@@ -961,11 +1011,11 @@ function styles_pack(url, req, res, cssmin) {
 
 	var xres = {
 		writeHead: function(status) {
-			if (status === 200) return;
-			prx = false;
+			if (prx = status === 200) return;
 
-			res.write('/* error load, status: '+status+' */\n\n')
-			//res.write('/* stop compile */\n')
+			log('error', 'error load '+status+',  file - ' + xreq.src);
+
+			res.write('/* error load, status: '+status+' */\n\n');
 		},
 
 		write: function(chunk) {
@@ -992,25 +1042,27 @@ function styles_pack(url, req, res, cssmin) {
 	};
 
 
-	modscript(req, url, function(status, code, _files, _styles) {
-		files = _styles;
+	modscript(log, req, url
+		, function(status, code, _files, _styles) {
+			files = _styles;
 
-		if (status !== true) {
-			res.writeHead(404, {
+			if (status !== true) {
+				res.writeHead(404, {
+					'content-type': 'text/css; charset=UTF-8'
+				});
+
+				res.end('//404');
+				return;
+			};
+
+
+			res.writeHead(200, {
 				'content-type': 'text/css; charset=UTF-8'
 			});
 
-			res.end('//404');
-			return;
-		};
-
-
-		res.writeHead(200, {
-			'content-type': 'text/css; charset=UTF-8'
-		});
-
-		next();
-	});
+			next();
+		}
+	);
 
 	function next() {
 		var i;
@@ -1051,6 +1103,7 @@ function styles_pack(url, req, res, cssmin) {
 
 		prx = true;
 
+		xreq.src = file;
 		prox(String(file), xreq, xres, false
 			, ''
 			, ''
@@ -1058,6 +1111,8 @@ function styles_pack(url, req, res, cssmin) {
 	};
 
 	function complite() {
+		res.write('\n'+log() );
+
 		res.end();
 	};
 };
@@ -1066,6 +1121,7 @@ function styles_pack(url, req, res, cssmin) {
 
 function script_langs(url, req, res, langsFor) {
 	var u
+	, log = newErrorLogs()
 	, prx = true
 	, file_index = -1
 	, files
@@ -1141,7 +1197,7 @@ function script_langs(url, req, res, langsFor) {
 				try {
 					x = JSON.parse(x)
 				} catch (e) {
-					console.log('ups JSON.parse(lang)');
+					//console.log('ups JSON.parse(lang)');
 					continue;
 				};
 
@@ -1162,28 +1218,30 @@ function script_langs(url, req, res, langsFor) {
 	};
 
 
-	modscript(req, url, function(status, code, _files, _styles, _langs, _mdurl) {
-		if (status !== true) {
-			res.writeHead(404, {
+	modscript(log, req, url
+		, function(status, code, _files, _styles, _langs, _mdurl) {
+			if (status !== true) {
+				res.writeHead(404, {
+					'content-type': 'application/x-javascript; charset=UTF-8'
+				});
+
+				res.end('//404');
+				return;
+			};
+
+
+			res.writeHead(200, {
 				'content-type': 'application/x-javascript; charset=UTF-8'
 			});
 
-			res.end('//404');
-			return;
-		};
 
+			files = _files;
+			langs = _langs;
+			mdurl = _mdurl;
 
-		res.writeHead(200, {
-			'content-type': 'application/x-javascript; charset=UTF-8'
-		});
-
-
-		files = _files;
-		langs = _langs;
-		mdurl = _mdurl;
-
-		next();
-	});
+			next();
+		}
+	);
 
 	function next() {
 		var i;
@@ -1383,7 +1441,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 		svres.writeHead(500, {});
 		svres.end('503');
 
-		console.log('error - 503');
+		//console.log('error - 503');
 	});
 
 	//console.log(HTTPS.globalAgent);
@@ -1401,7 +1459,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 		svres.writeHead(500, {});
 		svres.end('500');
 		
-		console.log('error - 500');
+		//console.log('error - 500');
 	});
 
 	client.on('response', function(response) {
