@@ -6,13 +6,13 @@ var config = (function() {
 		, i = 0
 		;
 
-        while(x = a[i++]){
-                try {
-                        x = require(x);
-                        return x;
-                } catch(e) {};
+		while(x = a[i++]){
+			try {
+				x = require(x);
+				return x;
+			} catch(e) {};
         };
-		
+
 		x = require('config-simple.js');
         return x;
 })();
@@ -263,20 +263,22 @@ function http_query(url, options, end) {
 	};
 
 
+	var client = src.protocol === 'https:' ? HTTPS.request(query) : HTTP.request(query);
 	var comp = false;
 
-	function err() {
+	client.setTimeout(20000, function() {
 		if (!comp) {
 			comp = true;
-			end();
+			end(408);
 		};
-	};
+	});
 
-	var client = src.protocol === 'https:' ? HTTPS.request(query) : HTTP.request(query);
-
-
-	client.setTimeout(4000, err);
-	client.on("error", err);
+	client.on("error", function() {
+		if (!comp) {
+			comp = true;
+			end('connect');
+		};
+	});
 
 	client.on('response'
 		, function(res) {
@@ -393,7 +395,7 @@ function smod(log, ureq, start_url, end_compite) {
 	function get_module(url, modstack, end) {
 		var virtmod = false;
 
-		if (url === true) {
+		if (url === true || url === false) {
 			virtmod = true;
 
 		} else {
@@ -424,7 +426,7 @@ function smod(log, ureq, start_url, end_compite) {
 
 		modules.push(xmod);
 
-		if (url !== true) {
+		if (typeof url === 'string') {
 			modulesHash[url] = xmod;
 			modstack.push(url);
 		};
@@ -500,7 +502,7 @@ function smod(log, ureq, start_url, end_compite) {
 
 						if (!src || typeof src !== 'string') {
 							modules.push(
-								mods[i] = {id: modules.length + 1, src: false}
+								mods[i] = {id: modules.length + 1, src: typeof src === 'boolean' ? src : null}
 							);
 
 							continue;
@@ -509,7 +511,7 @@ function smod(log, ureq, start_url, end_compite) {
 
 						src = formatURL(xurl, src);
 
-						(isLoadModuleLine || true ? loadModuleLine : loadModule)(mods[i] = {src: src}
+						(isLoadModuleLine || false ? loadModuleLine : loadModule)(mods[i] = {src: src}
 							, complit 
 						);
 
@@ -661,7 +663,7 @@ function modscript(log, ureq, url, end) {
 
 
 			global_modules.forEach(function(x) {
-				MDS[x.id] = {};
+				MDS[x.id] = typeof x.src === 'string' || x.src === true ? {} : x.src;
 				MDURL[x.id] = x.src;
 
 				langs[x.id] = x.langs || false;
@@ -785,23 +787,16 @@ function modscript(log, ureq, url, end) {
 function sandbox(req, url, end) {
 	var log = newErrorLogs();
 
-	
-
-	
-	modscript(log, req, url, function(status, code, files, styles) {
+	modscript(log, req, url, function(status, code, files, styles, langs, mods) {
 		if (status !== true) {
 			if (typeof end == 'function') {
 				end(false, log());
 			};
 			return;
 		};
-		
-		if (files.length) {
-			var _files = files.map(function(v){return v.url});
-			code += 'document.write('+JSON.stringify('<script src="' + _files.join('"></script><script src="') + '"></script>')+');\n'
-			code += '/*SCRIPTS:\n'+_files.join('\n')+'\n*/\n';
-		};
-		
+
+		var comment = '';
+		var wcode = '';
 
 		if (styles) {
 			var s = [], a, i;
@@ -813,8 +808,21 @@ function sandbox(req, url, end) {
 				);
 			};
 
-			code += '\ndocument.write('+JSON.stringify(s.join(''))+');\n';
-			code += '/*STYLES\n'+styles.join('\n')+'\n*/\n\n';
+			wcode += '\n\t+ ' + JSON.stringify(s.join(''));
+			comment += '\n/*STYLES\n'+styles.join('\n')+'\n*/\n\n';
+		};
+
+		if (files.length) {
+			var _files = files.map(function(v){return v.url});
+			wcode += '\n\t+ '+JSON.stringify('<script src="' + _files.join('"></script><script src="') + '"></script>')
+			comment += '\n/*SCRIPTS:\n'+_files.join('\n')+'\n*/\n';
+		};
+
+		if (wcode) {
+			code += 'document.write(""' + wcode + '\n);\n'
+
+			code += '\n/*MODULES:\n'+JSON.stringify(mods, null, " ")+'\n*/\n';
+			code += comment;
 		};
 
 
