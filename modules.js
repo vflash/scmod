@@ -77,9 +77,11 @@ function serverHendler(req, res) {
 	};
 	
 
+	/*
 	if (String(q.pathname).indexOf('/stoop') === 0) {
 		return;
 	};
+	*/
 
 
 	if (String(q.pathname).indexOf('/test') === 0) {
