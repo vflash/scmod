@@ -109,7 +109,22 @@ js-файлы будут подключенны без изменений как
 }
 ```
 
+**свойство "langs"* - для автоматического перевода текстовых значений в js-файле во время компиляции
+```js
+{
+	... ,
 
+	"langs": {
+		"текст который требует перевода": {
+			"ru": "текст перевода",
+			"en": "the translation",
+			"vn": "bản dịch",
+			....
+		},
+		......
+	}
+}
+```
 
 
 
@@ -155,7 +170,7 @@ js-файлы будут подключенны без изменений как
 
 **метод /scripts** - обьединяет все js-файлы в один
 
-пример - http://scmod.vflash.ru/scripts?src=http://zzreader.com/js/zzreader/feedreader.json
+пример - http://scmod.vflash.ru/scripts?lang=en&src=http://zzreader.com/js/zzreader/feedreader.json
 	
 	- src - абсолютный путь до корневого модуля. 
 	- auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
