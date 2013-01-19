@@ -217,9 +217,37 @@ js-файлы будут подключенны без изменений как
 Настройка nginx
 --------------------------------------
 
+```
+server {
+    listen   80;
+    server_name  scmod.vflash.ru;
+    access_log  /var/log/nginx/scmod.access.log;
 
+    location / {
+        proxy_pass http://127.0.0.1:1777/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP  $remote_addr;
+    }
+}
+```
 
+если нет возможности выделить отдельный домен то нужно указать дополнительные заголовки
+```
+server {
+    listen   80;
+    server_name  scmod.vflash.ru;
+    access_log  /var/log/nginx/scmod.access.log;
 
+    location /scmod/ {
+        proxy_pass http://127.0.0.1:1777/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP  $remote_addr;
+        
+        proxy_set_header x-scmod-scheme 'http';
+        proxy_set_header x-scmod-host $host/scmod;
+    }
+}
+```
 
 
 
