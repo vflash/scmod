@@ -231,23 +231,20 @@ server {
 }
 ```
 
-если нет возможности выделить отдельный домен то нужно указать дополнительные заголовки
+если нет возможности выделить отдельный домен то нужно будет указать дополнительные заголовки
 ```
-server {
-    listen   80;
-    server_name  scmod.vflash.ru;
-    access_log  /var/log/nginx/scmod.access.log;
+# vflash.ru/scmod/sandbox?src=http://zzreader.com/js/zzreader/feedreader.json
 
-    location /scmod/ {
-        proxy_pass http://127.0.0.1:1777/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP  $remote_addr;
-        
-        proxy_set_header x-scmod-scheme 'http';
-        proxy_set_header x-scmod-host $host/scmod;
-    }
+location /scmod/ {
+    proxy_pass http://127.0.0.1:1777/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP  $remote_addr;
+
+    proxy_set_header X-SCMOD-HOST  $host/scmod;
+    proxy_set_header X-SCMOD-SCHEME $scheme;
 }
 ```
+
 
 
 
