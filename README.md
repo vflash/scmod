@@ -78,8 +78,7 @@ __MODULE(2, function(global,module,core,cram,xhr_send,elems,tmpl){'use strict';
 return [global,module,core,cram,xhr_send,elems,tmpl]});
 ```
 в каждом js-файле будет обьявлена переменная **"module"**, (var module = {}). 
-
-любой js-файл может изменить значение переменной **"module"**.
+И любой js-файл может изменить значение этой переменной.
 
 
 
