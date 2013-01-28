@@ -29,6 +29,14 @@ var qs = require('querystring');
 var jsmin = require('./jsmin.js');
 //var crypto = require('crypto');
 
+var yaml = false;
+try {
+	yaml = require('js-yaml');
+} catch (e) {
+	yaml = false;
+};
+
+
 //process.setMaxListeners(0);
 
 
@@ -73,7 +81,12 @@ function serverHendler(req, res) {
 	//console.log(req.headers);
 
 	if (req.headers['x-real-ip']) {
-		req.X_Forwarded_For = req.headers['x-real-ip'] + (req.headers['x-forwarded-for'] ? ', ' + req.headers['x-forwarded-for'] : '')
+		req.X_Forwarded_For = req.headers['x-real-ip'] + (req.headers['x-forwarded-for'] ? ', ' + req.headers['x-forwarded-for'] : '');
+
+		if (String(req.X_Forwarded_For).split(',').length > 5 ) {
+			endres(res, 400);
+			return;
+		};
 	};
 	
 
@@ -145,45 +158,60 @@ function serverHendler(req, res) {
 	req.isLoadModuleLine = true; // грузить модули последовательно
 
 	switch(q.pathname) {
-	case '/sandbox': case '/write': case '/dev':
-		req.isLoadModuleLine = false;
+		case '/sandbox':
+			req.isLoadModuleLine = false;
 
-		sandbox(req, src, function(status, code) {
-			res.writeHead(200
-				, {
-					'Content-Type': 'application/x-javascript; charset=UTF-8',
-					'Cache-Control': 'no-store, no-cache, must-revalidate',
-					'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT',
-					'X-Forwarded-For': req.X_Forwarded_For
-				}
+			sandbox(req, src, function(status, code) {
+				res.writeHead(200
+					, {
+						'Content-Type': 'application/x-javascript; charset=UTF-8',
+						'Cache-Control': 'no-store, no-cache, must-revalidate',
+						'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT',
+						'X-Forwarded-For': req.X_Forwarded_For
+					}
+				);
+
+				res.end(code);
+			});
+			return;
+
+		case '/sandbox_styles':
+			req.isLoadModuleLine = false;
+
+			sandbox_styles(req, src, function(status, code) {
+				res.writeHead(200
+					, {
+						'Content-Type': 'text/css; charset=UTF-8',
+						'Cache-Control': 'no-store, no-cache, must-revalidate',
+						'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT',
+						'X-Forwarded-For': req.X_Forwarded_For
+					}
+				);
+
+				res.end(code);
+			});
+			return;
+
+		case '/scripts': 
+			script_pack(src, req, res, !('max' in q.query), q.query.lang ? String(q.query.lang) : false);
+			return;
+
+		case '/styles':
+			styles_pack(src, req, res, !('max' in q.query) );
+			return;
+
+		case '/langs':
+			req.isLoadModuleLine = false;
+
+			script_langs(src, req, res
+				, q.query['for'] ? String(q.query['for']) : false
 			);
 
-			res.end(code);
-		});
-		return;
+			return;
 
-	case '/pack':
-		script_pack(src, req, res);
-		return;
-	case '/scripts': case '/jsmin':
-		script_pack(src, req, res, true, q.query.lang ? String(q.query.lang) : false);
-		return;
-	case '/styles':
-		styles_pack(src, req, res, q.query.min != 'false');
-		return;
-	case '/langs':
-		req.isLoadModuleLine = false;
-
-		script_langs(src, req, res
-			, q.query['for'] ? String(q.query['for']) : false
-		);
-
-		return;
-
-	default:
-		endres(res, 400);
+		default:
+			endres(res, 400);
 	};
-
 };
 
 
@@ -474,58 +502,81 @@ function smod(log, ureq, start_url, end_compite) {
 					return;
 				};
 
-				var x, i, j,v;
+				var x, i, j;
 
-				try {
-					data = jsmin("", String(data).trim(), 2);
-					if (data.indexOf('{') ) {
-						data = data.substr(data.indexOf('{'));
+				if (type === 'text/yaml' || type === 'application/yaml') {
+
+					try {
+						mod_json = yaml.load(data);
+
+					} catch (e) {
+						mod_json = false;
+
+						log('error'
+							, xmod.error = (yaml ? 'error yaml' : 'error yaml no support') + ', module - ' + url + (yaml ? ('\n' + String(e)+'\n') : '')
+						);
 					};
 
-					mod_json = JSON.parse(data);
+					mload(mod_json);
 
-				} catch (e) {
-					mod_json = false;
-
-					log('error'
-						, xmod.error = 'error json, module - ' + url
-					);
-				};
-
-
-				if (mod_json.alias) {
-					xmod.alias = String(mod_json.alias);
-				};
-
-				j = 0;
-				if (x = mod_json.modules) {
-					for (i in x) {
-						var src = x[i];
-
-						if (!src || typeof src !== 'string') {
-							modules.push(
-								mods[i] = {id: modules.length + 1, src: typeof src === 'boolean' ? src : null}
-							);
-
-							continue;
+				} else {
+					try {
+						data = jsmin("", String(data).trim(), 2);
+						if (data.indexOf('{') ) {
+							data = data.substr(data.indexOf('{'));
 						};
 
+						mod_json = JSON.parse(data);
 
-						src = formatURL(xurl, src);
+					} catch (e) {
+						mod_json = false;
 
-						(isLoadModuleLine || false ? loadModuleLine : loadModule)(mods[i] = {src: src}
-							, complit 
+						log('error'
+							, xmod.error = 'error json, module - ' + url + '\n'+ String(e) + '\n'
 						);
-
-						j += 1;
 					};
+
+					mload(mod_json);
 				};
-
-				modules_total = j;
-
-				complit(true);
 			}
 		);
+		
+		function mload(mod_json) {
+			var j = 0, i, x;
+
+			if (mod_json.alias) {
+				xmod.alias = String(mod_json.alias);
+			};
+
+			if (x = mod_json.modules) {
+				for (i in x) {
+					var src = x[i];
+
+					if (!src || typeof src !== 'string') {
+						modules.push(
+							mods[i] = {
+								id: modules.length + 1, 
+								src: typeof src === 'boolean' || typeof src === 'object' ? src : null
+							}
+						);
+
+						continue;
+					};
+
+
+					src = formatURL(xurl, src);
+
+					(isLoadModuleLine || false ? loadModuleLine : loadModule)(mods[i] = {src: src}
+						, complit 
+					);
+
+					j += 1;
+				};
+			};
+
+			modules_total = j;
+			complit(true);
+		};
 
 		function loadModuleLine(mod, end) {
 			if (lineSending) {
@@ -665,7 +716,9 @@ function modscript(log, ureq, url, end) {
 
 
 			global_modules.forEach(function(x) {
-				MDS[x.id] = typeof x.src === 'string' || x.src === true ? {} : x.src;
+				//MDS[x.id] = typeof x.src === 'string' || x.src === true ? {} : x.src;
+				MDS[x.id] = typeof x.src == 'object' || typeof x.src == 'boolean' ?  x.src : {};
+
 				MDURL[x.id] = x.src;
 
 				langs[x.id] = x.langs || false;
@@ -704,8 +757,8 @@ function modscript(log, ureq, url, end) {
 			, files = []
 			, file, url
 			, a = global_files
-			, qhost = ((ureq.headers['x-scmod-scheme']||ureq.headers['x-real-protocol'])==='https' ? 'https://' : 'http://') 
-				+ String(ureq.headers['x-scmod-host']||ureq.headers.host||'unknown.host')
+			, qhost = ((ureq.headers['x-scmod-scheme'] || ureq.headers['x-real-protocol']) === 'https' ? 'https://' : 'http://') 
+				+ String(ureq.headers['x-scmod-host'] || ureq.headers.host || 'unknown.host')
 			, i = 0
 			, x, v
 			;
@@ -820,19 +873,71 @@ function sandbox(req, url, end) {
 			comment += '\n/*SCRIPTS:\n'+_files.join('\n')+'\n*/\n';
 		};
 
+		var mds = {}, i;
+		for (i in mods) {
+			if (typeof mods[i] === 'string') {
+				mds[i] = mods[i];
+			};
+		};
+		
+		
 		if (wcode) {
-			code += 'document.write(""' + wcode + '\n);\n'
+			code += 'document.write(""' + wcode + '\n);\n';
 
-			code += '\n/*MODULES:\n'+JSON.stringify(mods, null, " ")+'\n*/\n';
+			code += '\n/*MODULES:\n'+JSON.stringify(mds, null, " ")+'\n*/\n';
 			code += comment;
 		};
 
 
-		if (typeof end == 'function') {
-			end(true, code + log() );
-		};
+		end(true, code + log() );
 	});
 };
+
+
+function sandbox_styles(req, url, end) {
+	var log = newErrorLogs();
+
+	modscript(log, req, url, function(status, code, files, styles, langs, mods) {
+		if (status !== true) {
+			if (typeof end == 'function') {
+				end(false, log());
+			};
+			return;
+		};
+
+		var comment = '';
+		var wcode = '';
+		var code = '';
+
+		if (styles) {
+			var s = [], a, i;
+
+			for (i=0; i < styles.length; i+=30) {
+				s.push('/* ------------ */\n'
+					+ styles.slice(i, i+30).map(function(x) {return '@import url('+JSON.stringify(String(x))+');\n'}).join('')
+				);
+			};
+
+			wcode += s.join('');
+		};
+
+
+		var mds = {}, i;
+		for (i in mods) {
+			if (typeof mods[i] === 'string') {
+				mds[i] = mods[i];
+			};
+		};
+
+		if (wcode) {
+			code += '\n/*MODULES:\n'+JSON.stringify(mds, null, " ")+'\n*/\n';
+			code += '\n' + wcode;
+		};
+
+		end(true, code + log() );
+	});
+};
+
 
 
 function script_pack(url, req, res, jmin, langKey) {
@@ -1040,11 +1145,11 @@ function styles_pack(url, req, res, cssmin) {
 
 		end: function() {
 			if (cssmin) {
-			res.write(
-				buffer.join('').replace(/(^|{|;|:|,|\n)\s+(?=}?)|[\t ]+(?=})|\s+(?= {)|\/\*([^\*]|\*(?=[^\/]))+\*\/\s*/g, '$1')
-			);
+				res.write(
+					buffer.join('').replace(/(^|{|;|:|,|\n)\s+(?=}?)|[\t ]+(?=})|\s+(?= {)|\/\*([^\*]|\*(?=[^\/]))+\*\/\s*/g, '$1')
+				);
 
-			buffer.length = 0;
+				buffer.length = 0;
 			};
 
 			next();
@@ -1613,9 +1718,9 @@ function file_prox(req, res, q) {
 	if (!file) {
 		res.writeHead(404
 			, {
-			'Content-Type': 'application/x-javascript; charset=UTF-8',
-			'Cache-Control': 'no-store, no-cache, must-revalidate',
-			'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+				'Content-Type': 'application/x-javascript; charset=UTF-8',
+				'Cache-Control': 'no-store, no-cache, must-revalidate',
+				'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
 			}
 		);
 
