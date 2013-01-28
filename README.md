@@ -199,12 +199,12 @@ js-файлы будут подключенны без изменений как
 ```bash
 [sudo] cp /usr/local/lib/node_modules/scmod/config.js  /usr/local/etc/scmod/config.js
 ```
-правим астройки под себя
+правим настройки под себя
 
 
 для Ubuntu подготовлен файл upstart
 ```bash
-[sudo] ln -s /etc/init/scmod.conf /usr/local/lib/node_modules/
+[sudo] ln -s /etc/init/scmod.conf /usr/local/lib/node_modules/scmod.conf
 [sudo] start scmod
 ```
 
