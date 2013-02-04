@@ -152,6 +152,10 @@ js-файлы будут подключенны без изменений как
 <html>
 	<head>
 		<script src="http://scmod.vflash.ru/sandbox?src=http://zzreader.com/js/zzreader/feedreader.json"></script>
+		<noscript>
+			<link rel="stylesheet" href="http://scmod.vflash.ru/sandbox_styles?src=http://zzreader.com/js/zzreader/feedreader.json" type="text/css" />
+		</noscript>
+
 	</head>
 	<body> ... </body>
 </html>
