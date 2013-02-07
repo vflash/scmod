@@ -18,7 +18,6 @@ var config = (function() {
 })();
 
 
-
 var log = console.log;
 
 var HTTP = require('http');
@@ -26,7 +25,7 @@ var HTTPS = require('https');
 var URL = require('url');
 var PATH = require('path');
 var qs = require('querystring');
-var jsmin = require('./jsmin.js');
+var jsmin = require('./lib/jsmin.js');
 //var crypto = require('crypto');
 
 var yaml = false;
@@ -38,8 +37,6 @@ try {
 
 
 //process.setMaxListeners(0);
-
-
 //HTTP.globalAgent.maxSockets = 1;
 HTTPS.globalAgent.maxSockets = 1;
 
@@ -137,19 +134,24 @@ function serverHendler(req, res) {
 	};
 
 
-	var src = q.query.src || '';
 
+
+	/*
+	var src = q.query.src || '';
 	if (/^https?:\/\//.test(src) ) {
 		src = normalizeURL(src);
+
 	} else {
 		if ((src[0] == '.' || src[0] == '/') && String(req.headers['referer']).indexOf('http://') === 0 ) {
 			src = formatURL(URL.parse(String(req.headers['referer'])), src);
+
 		} else {
 			src = false;
 		};
 	};
+	*/
 
-
+	var src = aliasURL(q.query.src, false);
 	if (!src) {
 		return endres(res, 404);
 	};
@@ -193,11 +195,11 @@ function serverHendler(req, res) {
 			return;
 
 		case '/scripts': 
-			script_pack(src, req, res, !('max' in q.query), q.query.lang ? String(q.query.lang) : false);
+			script_pack(src, req, res, !('max' in q.query || q.query.min === 'false'), q.query.lang ? String(q.query.lang) : false);
 			return;
 
 		case '/styles':
-			styles_pack(src, req, res, !('max' in q.query) );
+			styles_pack(src, req, res, !('max' in q.query || q.query.min === 'false') );
 			return;
 
 		case '/langs':
@@ -273,6 +275,31 @@ function parse_cookie(s) {
 		return r;
 };
 
+
+
+function aliasURL(url, rp) {
+	var x;
+
+	if (/^https?:\/\//.test(url)) {
+		return normalizeURL(url);
+	};
+
+	url = String(url).replace(/^github:~\//, 'github:master/');
+
+	switch(x = url.substring(0, url.indexOf(':')) ) {
+		case 'global': return false;
+
+		case 'github':
+			x = String(url).substring(String(url).indexOf(':') + 1);
+			x = /[\w-]\.[\w-]{1,7}$/.test(x) ? x : x.replace(/(\/([\w-]+)$)/, '$1/$2.json'); 
+			x = x.replace(/^([^\/]+)\/([^\/]+)\/([^\/]+)/, '$2/$3/$1')
+
+			return normalizeURL('https://raw.github.com/' + x);
+
+		default:
+			return normalizeURL('http://' + url);
+	};
+};
 
 
 function http_query(url, options, end) {
@@ -423,26 +450,20 @@ function smod(log, ureq, start_url, end_compite) {
 	});
 
 	function get_module(url, modstack, end) {
-		var virtmod = false;
+		var virtmod = false, x;
 
 		if (url === true || url === false) {
 			virtmod = true;
 
 		} else {
-			if (!/^https?:\/\//.test(url)) {
-				if (String(url).substr(0,7) == 'global:') {
-					virtmod = true;
-				} else
-				if (String(url).substr(0,2) == '//') {
-					url = normalizeURL('http' + url);
-				} else {
-					url = normalizeURL('http://' + url);
-				};
+			if (x = aliasURL(url, false)) {
+				url = x;
+			} else {
+				virtmod = true;
 			};
 		};
-		
 
-		var xurl = virtmod ? false : URL.parse(normalizeURL(url));
+		var xurl = virtmod ? false : URL.parse(url);
 
 		var modules_total = null;
 		var modules_loaded = 0;
@@ -507,7 +528,8 @@ function smod(log, ureq, start_url, end_compite) {
 				if (type === 'text/yaml' || type === 'application/yaml') {
 
 					try {
-						mod_json = yaml.load(data);
+						//mod_json = yaml.load(data);
+						mod_json = yaml.safeLoad(data);
 
 					} catch (e) {
 						mod_json = false;
@@ -813,7 +835,7 @@ function modscript(log, ureq, url, end) {
 				// '<script src=""></script>'
 			var jscode = '';
 
-			jscode += 'var __MODULE=(function(){var global=window'
+			jscode += 'var __MODULE=(function(){\'use strict\';var global=window'
 				+',MODULES='+JSON.stringify(MDS)
 				+',DEPEND='+JSON.stringify(DEPEND)
 				+',depend={}'
@@ -971,45 +993,50 @@ function script_pack(url, req, res, jmin, langKey) {
 		},
 
 		write: function(chunk) {
+			if (prx) buffer.push(chunk);
+			/*
 			if (jmin) {
 				if (prx) buffer.push(chunk);
 			} else {
 				if (prx) res.write(chunk);
 			};
+			*/
 		},
 
 		end: function() {
+			var code = buffer.join(''), lang, x;
+			buffer.length = 0;
+
 			if (jmin) {
-				var code = '', lang, x;
-
 				try {
-					code = jsmin("", buffer.join(''), 1);
+					code = jsmin("", code, 1);
 				} catch (e) {
-					log('error', 'error jsmin error, file - ' + xres.src);
-
 					res.write('/* jsmin error */');
+					code = '';
+
+					log('error', 'error jsmin error, file - ' + xres.src);
 				};
+			};
 
-				buffer.length = 0;
+			if (lang = langKey ? langs[modID] : false) {
 
-				if (lang = langKey ? langs[modID] : false) {
-					
-					code = code.replace(/\/\*([^*]|\*(?=[^\/]))+\*\/|\/(\\\\|\\\/|[^\/\n])+\/|\'(\\\\|\\\'|[^\'])*'|\"(\\\\|\\\"|[^\"])*\"/g
-						, function(x) {
-							if (x.charCodeAt(0) !== 34) return x;
+				code = code.replace(/\/\*([^*]|\*(?=[^\/]))+\*\/|\/(\\\\|\\\/|[^\/\n])+\/|\'(\\\\|\\\'|[^\'])*'|\"(\\\\|\\\"|[^\"])*\"/g
+					, function(x) {
+						if (x.charCodeAt(0) !== 34) return x;
 
-							try {
-								var vs = lang[JSON.parse(x)] || false;
-							} catch (e) {
-								//console.log('ups JSON.parse(lang)');
-								return x;
-							};
+						try {
+							var vs = lang[JSON.parse(x)] || false;
+						} catch (e) {
+							//console.log('ups JSON.parse(lang)');
+							return x;
+						};
 
-							return typeof vs[langKey] === 'string' ? JSON.stringify(vs[langKey]) : x;
-						}
-					);
-				};
+						return typeof vs[langKey] === 'string' ? JSON.stringify(vs[langKey]) : x;
+					}
+				);
+			};
 
+			if (code) {
 				res.write(code);
 			};
 
