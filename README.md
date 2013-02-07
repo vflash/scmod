@@ -152,6 +152,10 @@ js-файлы будут подключенны без изменений как
 <html>
 	<head>
 		<script src="http://scmod.vflash.ru/sandbox?src=http://zzreader.com/js/zzreader/feedreader.json"></script>
+		<noscript>
+			<link rel="stylesheet" href="http://scmod.vflash.ru/sandbox_styles?src=http://zzreader.com/js/zzreader/feedreader.json" type="text/css" />
+		</noscript>
+
 	</head>
 	<body> ... </body>
 </html>
@@ -193,18 +197,18 @@ js-файлы будут подключенны без изменений как
 --------------------------------------
 проше всего установить через npm
 ```bash
-[sudo] npm -g scmod
+[sudo] npm -g install scmod
 ```
 после нужно скопировать файл настройки сервиса scmod
 ```bash
 [sudo] cp /usr/local/lib/node_modules/scmod/config.js  /usr/local/etc/scmod/config.js
 ```
-правим астройки под себя
+правим настройки под себя
 
 
 для Ubuntu подготовлен файл upstart
 ```bash
-[sudo] ln -s /etc/init/scmod.conf /usr/local/lib/node_modules/
+[sudo] ln -s /etc/init/scmod.conf /usr/local/lib/node_modules/scmod.conf
 [sudo] start scmod
 ```
 
@@ -247,7 +251,20 @@ location /scmod/ {
 
 
 
+Планы на будующее 
+--------------------------------------
 
+ - Возможность компиляции из консоли
+ - Функционал для подмены url 
+ - Дать возможность указывать зависимости непосредственно в js-файле. Используя конструкции вида:
+
+```js
+import core '../core/core.json';
+
+var xx = ...;
+...
+
+```
 
 
 
