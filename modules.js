@@ -26,6 +26,7 @@ var URL = require('url');
 var PATH = require('path');
 var qs = require('querystring');
 var jsmin = require('./lib/jsmin.js');
+var jsToJSON = require('./lib/js-json.js').conv;
 //var crypto = require('crypto');
 
 var yaml = false;
@@ -160,6 +161,21 @@ function serverHendler(req, res) {
 	req.isLoadModuleLine = true; // грузить модули последовательно
 
 	switch(q.pathname) {
+		case '/json':
+			view_json(req, src, function(status, data) {
+				res.writeHead(200
+					, {
+						'Content-Type': status === true ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8',
+						'Cache-Control': 'no-store, no-cache, must-revalidate',
+						'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT',
+						'X-Forwarded-For': req.X_Forwarded_For
+					}
+				);
+
+				res.end(data);
+			});
+			return;
+			
 		case '/sandbox':
 			req.isLoadModuleLine = false;
 
@@ -368,6 +384,42 @@ function http_query(url, options, end) {
 };
 
 
+function view_json(req, src, end) {
+	http_query(src
+		, {authorization: req.headers['authorization'], 'x_forwarded_for': req.X_Forwarded_For}
+
+		, function(status, data, type) {
+			if (status !== true) {
+				return end(false, 'status > ' + status);
+			};
+
+			var x;
+
+			if (type === 'text/yaml' || type === 'application/yaml') {
+				try {
+					end(true, JSON.stringify(yaml.safeLoad(data), null, "\t") );
+
+				} catch (e) {
+					end(false, data);
+				};
+
+				return;
+			};
+
+			data = jsToJSON(data).trim();
+
+			try {
+				end(true,
+					JSON.stringify(JSON.parse(data), null, "\t")
+				);
+
+			} catch (e) {
+				end(true, data);
+			};
+		}
+	);	
+};
+
 /*
 
 modules = {
@@ -542,13 +594,18 @@ function smod(log, ureq, start_url, end_compite) {
 					mload(mod_json);
 
 				} else {
+
 					try {
+						/*
 						data = jsmin("", String(data).trim(), 2);
 						if (data.indexOf('{') ) {
 							data = data.substr(data.indexOf('{'));
 						};
-
 						mod_json = JSON.parse(data);
+						*/
+						mod_json = JSON.parse(
+							jsToJSON(data).trim()
+						);
 
 					} catch (e) {
 						mod_json = false;
