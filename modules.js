@@ -1,5 +1,22 @@
 ﻿'use strict';
 
+
+var HTTP = require('http');
+var HTTPS = require('https');
+var URL = require('url');
+var PATH = require('path');
+var qs = require('querystring');
+var jsmin = require('./lib/jsmin.js');
+var jsToJSON = require('./lib/js-json.js').conv;
+//var crypto = require('crypto');
+
+var yaml = false;
+try {
+	yaml = require('js-yaml');
+} catch (e) {
+	yaml = false;
+};
+
 var config = (function() {
 		var x
 		, a = ['./config.js', '/usr/local/etc/scmod/config.js', '/etc/scmod/config.js']
@@ -18,23 +35,6 @@ var config = (function() {
 })();
 
 
-var log = console.log;
-
-var HTTP = require('http');
-var HTTPS = require('https');
-var URL = require('url');
-var PATH = require('path');
-var qs = require('querystring');
-var jsmin = require('./lib/jsmin.js');
-var jsToJSON = require('./lib/js-json.js').conv;
-//var crypto = require('crypto');
-
-var yaml = false;
-try {
-	yaml = require('js-yaml');
-} catch (e) {
-	yaml = false;
-};
 
 
 //process.setMaxListeners(0);
@@ -75,8 +75,19 @@ process.nextTick(function() {
 
 function serverHendler(req, res) {
 	var q = URL.parse(req.url, true), x;
+	
+	/*
+	var tm = new Date();
+	res.__end = res.end;
+	res.end = function(x) {
+		res.__end(x);
+		console.log(new Date() - tm)
+	};
+	*/
+	
 
-	//console.log(req.headers);
+	req.isLoadModuleLine = true; // грузить модули последовательно
+	req.replaceHash = /true|1|on/.test(q.query.rep) || q.query.rep === '' ? false : true; // true - пустой , false - не инициализированный
 
 	if (req.headers['x-real-ip']) {
 		req.X_Forwarded_For = req.headers['x-real-ip'] + (req.headers['x-forwarded-for'] ? ', ' + req.headers['x-forwarded-for'] : '');
@@ -86,14 +97,6 @@ function serverHendler(req, res) {
 			return;
 		};
 	};
-	
-
-	/*
-	if (String(q.pathname).indexOf('/stoop') === 0) {
-		return;
-	};
-	*/
-
 
 	if (String(q.pathname).indexOf('/test') === 0) {
 		res.writeHead(404
@@ -115,9 +118,11 @@ function serverHendler(req, res) {
 		return;
 	};
 
-
 	if (q.query.auth !== 'base') {
-		if (req.headers['authorization']) req.headers['authorization'] = null;
+		if (req.headers['authorization']) {
+			req.headers['authorization'] = null;
+		};
+
 	} else {
 		if (!req.headers['authorization']) {
 			res.writeHead(401
@@ -152,13 +157,63 @@ function serverHendler(req, res) {
 	};
 	*/
 
+
 	var src = aliasURL(q.query.src, false);
 	if (!src) {
 		return endres(res, 404);
 	};
-	
 
-	req.isLoadModuleLine = true; // грузить модули последовательно
+	function go() {
+		go_cmd(req, res, src, q);
+	};
+
+	if (!q.query.rep || /^(false|true||0|1|off|on)$/.test(q.query.rep) ) {
+		return go();
+	};
+
+	var url_replace = formatURL(URL.parse(src), q.query.rep);
+	if (!url_replace) return go();
+
+	http_query(url_replace, {authorization: req.headers['authorization'], X_Forwarded_For: req.X_Forwarded_For}
+		, function(status, data, type) {
+			if (status !== true) {
+				endres(res, 400, '// error load "replace" file. status - ' + status);
+				return;
+			};
+
+			var x = dataToJSON(type, data) || false;
+			if (!x.replace || typeof x.replace !== 'object') {
+				endres(res, 400, '// error data "replace" file ');
+				return;
+			};
+
+			req.replaceHash = genReplaceHash(URL.parse(url_replace)
+				, x.replace
+			);
+
+			go();
+		}
+	);
+};
+
+function genReplaceHash(xurl, x) {
+	//var xurl = URL.parse(url);
+	var rp = {}, has, a, b, i;
+
+	for (i in x) {
+		a = formatURL(xurl, i);
+		b = formatURL(xurl, x[i]);
+		
+		if (a && b) {
+			has = true;
+			rp[a] = b;
+		};
+	};
+	
+	return has ? rp : true; 
+}
+
+function go_cmd(req, res, src, q) {
 
 	switch(q.pathname) {
 		case '/json':
@@ -167,8 +222,7 @@ function serverHendler(req, res) {
 					, {
 						'Content-Type': status === true ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8',
 						'Cache-Control': 'no-store, no-cache, must-revalidate',
-						'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT',
-						'X-Forwarded-For': req.X_Forwarded_For
+						'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
 					}
 				);
 
@@ -184,8 +238,7 @@ function serverHendler(req, res) {
 					, {
 						'Content-Type': 'application/x-javascript; charset=UTF-8',
 						'Cache-Control': 'no-store, no-cache, must-revalidate',
-						'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT',
-						'X-Forwarded-For': req.X_Forwarded_For
+						'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
 					}
 				);
 
@@ -201,8 +254,7 @@ function serverHendler(req, res) {
 					, {
 						'Content-Type': 'text/css; charset=UTF-8',
 						'Cache-Control': 'no-store, no-cache, must-revalidate',
-						'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT',
-						'X-Forwarded-For': req.X_Forwarded_For
+						'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
 					}
 				);
 
@@ -229,8 +281,9 @@ function serverHendler(req, res) {
 
 		default:
 			endres(res, 400);
-	};
+	};	
 };
+
 
 
 function newErrorLogs() {
@@ -293,30 +346,6 @@ function parse_cookie(s) {
 
 
 
-function aliasURL(url, rp) {
-	var x;
-
-	if (/^https?:\/\//.test(url)) {
-		return normalizeURL(url);
-	};
-
-	url = String(url).replace(/^github:~\//, 'github:master/');
-
-	switch(x = url.substring(0, url.indexOf(':')) ) {
-		case 'global': return false;
-
-		case 'github':
-			x = String(url).substring(String(url).indexOf(':') + 1);
-			x = /[\w-]\.[\w-]{1,7}$/.test(x) ? x : x.replace(/(\/([\w-]+)$)/, '$1/$2.json'); 
-			x = x.replace(/^([^\/]+)\/([^\/]+)\/([^\/]+)/, '$2/$3/$1')
-
-			return normalizeURL('https://raw.github.com/' + x);
-
-		default:
-			return normalizeURL('http://' + url);
-	};
-};
-
 
 function http_query(url, options, end) {
 	var src = URL.parse(url);
@@ -326,7 +355,7 @@ function http_query(url, options, end) {
 	var query = {
 		method:'GET',
 		headers: {
-			'x-forwarded-for' : options.x_forwarded_for || null,
+			'x-forwarded-for' : options.X_Forwarded_For || null,
 			authorization: options.authorization ? access_domain(src.protocol, src.host, false) ? options.authorization : null : null
 		},
 
@@ -383,10 +412,52 @@ function http_query(url, options, end) {
 	client.end();
 };
 
+function dataToJSON(type, data, log) {
+	var mod_json = false;
+
+	if (typeof log !== 'function') {
+		log = function(){};
+	};
+
+	if (type === 'text/yaml' || type === 'application/yaml') {
+		try {
+			//mod_json = yaml.load(data);
+			mod_json = yaml.safeLoad(data);
+
+		} catch (e) {
+			mod_json = false;
+
+			log('error'
+				, xmod.error = (yaml ? 'error yaml' : 'error yaml no support') + ', module - ' + url + (yaml ? ('\n' + String(e)+'\n') : '')
+			);
+		};
+
+	} else {
+
+		try {
+			mod_json = JSON.parse(data);
+
+		} catch (e) {
+			try {
+				mod_json = JSON.parse(jsToJSON(data).trim());
+
+			} catch (e) {
+				mod_json = false;
+
+				log('error'
+					, xmod.error = 'error json, module - ' + url + '\n'+ String(e) + '\n'
+				);
+			};
+		};
+	};
+	
+	return mod_json;
+};
+
 
 function view_json(req, src, end) {
 	http_query(src
-		, {authorization: req.headers['authorization'], 'x_forwarded_for': req.X_Forwarded_For}
+		, {authorization: req.headers['authorization'], X_Forwarded_For: req.X_Forwarded_For}
 
 		, function(status, data, type) {
 			if (status !== true) {
@@ -452,22 +523,37 @@ function search(modules, url) {
 	return false;
 };
 
-function formatURL(xurl, src) {
 
-	if (src[0] == '.') {
-		return xurl.protocol + '//' + xurl.host + PATH.normalize((xurl.pathname||'/') + '/../'+src);
-	} else 
-	if (src[0] == '/') {
-		return xurl.protocol + '//' + xurl.host + PATH.normalize(src);
-	} else 
-	if (src.substr(0, 3) == '://') {
-		src = xurl.protocol + src.substr(1);
-	} else 
-	if (String(src).indexOf(':') === -1 ) {
-		return xurl.protocol + '//' + xurl.host + PATH.normalize((xurl.pathname||'/') + '/../'+src);
+// востанавливает url
+function formatURL(xurl, src, replaceHash) {
+	if (typeof src !== 'string') {
+		return src;
 	};
 
-	return normalizeURL(src);
+	var x;
+
+	if (src[0] == '.') {
+		src = xurl.protocol + '//' + xurl.host + PATH.normalize((xurl.pathname||'/') + '/../'+src);
+	} else 
+	if (src[0] == '/') {
+		src = xurl.protocol + '//' + xurl.host + PATH.normalize(src);
+	} else 
+	if (src.substr(0, 3) == '://') {
+		src = normalizeURL(xurl.protocol + src.substr(1)); //
+	} else 
+	if (String(src).indexOf(':') === -1 ) {
+		src = xurl.protocol + '//' + xurl.host + PATH.normalize((xurl.pathname||'/') + '/../'+src);
+	} else {
+		src = normalizeURL(src);
+	};
+
+	src = aliasURL(src);
+
+	if (typeof (replaceHash||false)[src] === 'string') {
+		src = replaceHash[src];
+	};
+
+	return src;
 };
 
 function normalizeURL(url) {
@@ -487,10 +573,38 @@ function normalizeURL(url) {
 	return url
 };
 
+function aliasURL(url) {
+	var x, u;
+
+	if (!url) return false;
+
+	if (/^https?:\/\//.test(url)) {
+		return normalizeURL(url);
+	};
+
+	url = String(url).replace(/^github:~\//, 'github:master/');
+
+	switch(x = url.substring(0, url.indexOf(':')) ) {
+		case 'global': return url;
+
+		case 'github':
+			x = String(url).substring(String(url).indexOf(':') + 1);
+			x = /[\w-]\.[\w-]{1,7}$/.test(x) ? x : x.replace(/(\/([\w-]+)$)/, '$1/$2.json'); 
+			x = x.replace(/^([^\/]+)\/([^\/]+)\/([^\/]+)/, '$2/$3/$1')
+
+			return normalizeURL('https://raw.github.com/' + x);
+
+		default:
+			return normalizeURL('http://' + url);
+	};
+};
+
+
 
 
 function smod(log, ureq, start_url, end_compite) {
 	var isLoadModuleLine = ureq.isLoadModuleLine ? true : false;
+	var replaceHash = ureq.replaceHash || false;  // false - не указан , true - пустой
 	var modules = [];
 	var modulesHash = {};
 	var files = [];
@@ -504,19 +618,11 @@ function smod(log, ureq, start_url, end_compite) {
 	function get_module(url, modstack, end) {
 		var virtmod = false, x;
 
-		if (url === true || url === false) {
+		if (typeof url !== 'string' || !/^https?:/.test(url) ) {
 			virtmod = true;
-
-		} else {
-			if (x = aliasURL(url, false)) {
-				url = x;
-			} else {
-				virtmod = true;
-			};
 		};
 
 		var xurl = virtmod ? false : URL.parse(url);
-
 		var modules_total = null;
 		var modules_loaded = 0;
 
@@ -559,7 +665,7 @@ function smod(log, ureq, start_url, end_compite) {
 
 		if (config.log) console.log('mod \t', url);
 
-		http_query(url, {authorization: ureq.headers['authorization'], 'x_forwarded_for': ureq.X_Forwarded_For}
+		http_query(url, {authorization: ureq.headers['authorization'], X_Forwarded_For: ureq.X_Forwarded_For}
 			, function(status, data, type) {
 				if (stop) return;
 
@@ -575,48 +681,13 @@ function smod(log, ureq, start_url, end_compite) {
 					return;
 				};
 
-				var x, i, j;
+				mod_json = dataToJSON(type, data, log);
 
-				if (type === 'text/yaml' || type === 'application/yaml') {
-
-					try {
-						//mod_json = yaml.load(data);
-						mod_json = yaml.safeLoad(data);
-
-					} catch (e) {
-						mod_json = false;
-
-						log('error'
-							, xmod.error = (yaml ? 'error yaml' : 'error yaml no support') + ', module - ' + url + (yaml ? ('\n' + String(e)+'\n') : '')
-						);
-					};
-
-					mload(mod_json);
-
-				} else {
-
-					try {
-						/*
-						data = jsmin("", String(data).trim(), 2);
-						if (data.indexOf('{') ) {
-							data = data.substr(data.indexOf('{'));
-						};
-						mod_json = JSON.parse(data);
-						*/
-						mod_json = JSON.parse(
-							jsToJSON(data).trim()
-						);
-
-					} catch (e) {
-						mod_json = false;
-
-						log('error'
-							, xmod.error = 'error json, module - ' + url + '\n'+ String(e) + '\n'
-						);
-					};
-
-					mload(mod_json);
+				if (!replaceHash) {
+					replaceHash = mod_json.replace ? genReplaceHash(xurl, mod_json.replace) : true;
 				};
+
+				mload(mod_json);
 			}
 		);
 		
@@ -626,6 +697,7 @@ function smod(log, ureq, start_url, end_compite) {
 			if (mod_json.alias) {
 				xmod.alias = String(mod_json.alias);
 			};
+
 
 			if (x = mod_json.modules) {
 				for (i in x) {
@@ -643,7 +715,7 @@ function smod(log, ureq, start_url, end_compite) {
 					};
 
 
-					src = formatURL(xurl, src);
+					src = formatURL(xurl, src, replaceHash);
 
 					(isLoadModuleLine || false ? loadModuleLine : loadModule)(mods[i] = {src: src}
 						, complit 
@@ -740,7 +812,7 @@ function smod(log, ureq, start_url, end_compite) {
 							moduleID: xmod.id,
 							id: files.length+1,
 							nowrap: xmod.nowrap,
-							src: formatURL(xurl, x)
+							src: formatURL(xurl, x, replaceHash)
 						});
 					};
 				};
@@ -749,7 +821,7 @@ function smod(log, ureq, start_url, end_compite) {
 			if (a = mod_json.styles) {
 				for(i=0, l = a.length; i<l; i+=1) {
 					if (x = a[i]) {
-						styles.push(formatURL(xurl, x));
+						styles.push(formatURL(xurl, x, replaceHash));
 					};
 				};
 			};
@@ -1745,32 +1817,31 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 };
 
 
-function endres(res, status) {
-	switch(status) {
-	case 400:
-		res.writeHead(400
-			, {
-				'Content-Type': 'application/x-javascript; charset=UTF-8',
-				'Cache-Control': 'no-store, no-cache, must-revalidate',
-				'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
-			}
-		);
-
-		res.end('// 400 Bad Request');
-		return;
-
-	case 404:
-		res.writeHead(404
-			, {
-				'Content-Type': 'application/x-javascript; charset=UTF-8',
-				'Cache-Control': 'no-store, no-cache, must-revalidate',
-				'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
-			}
-		);
-
-		res.end('// 404 Not Found');
-		return;
+function endres(res, status, data) {
+	var text = {
+		'204': '// 204 No Content',
+		'400': '// 400 Bad Request',
+		'404': '// 404 Not Found' 
 	};
+
+	switch(status) {
+		case 204: break;
+		case 404: break;
+		case 400: break;
+
+		default:
+			status = 400;
+	};
+
+	res.writeHead(status
+		, {
+			'Content-Type': 'text/plain; charset=utf-8',
+			'Cache-Control': 'no-store, no-cache, must-revalidate',
+			'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+		}
+	);
+
+	res.end(data || text[status] || '// ups');
 };
 
 
