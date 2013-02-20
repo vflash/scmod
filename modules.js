@@ -350,6 +350,14 @@ function parse_cookie(s) {
 function http_query(url, options, end) {
 	var src = URL.parse(url);
 
+	if (!src.host || !/.\.[a-zA-Z]{2,7}$/.test(src.hostname) || /^\.|\.\.|[^\w\-\.]/.test(src.hostname)) {
+		return end('bad url-hostname');
+	};
+
+	if ( !(src.protocol === 'http:' || src.protocol === 'https:') ) {
+		return end('bad url-protocol');
+	};
+
 	options = options || false;
 
 	var query = {
