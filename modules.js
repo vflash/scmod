@@ -683,6 +683,11 @@ function smod(log, ureq, start_url, end_compite) {
 
 				mod_json = dataToJSON(type, data, log);
 
+				var x = mod_json.scmod;
+				if (typeof x === 'object' && x.scmod !== null) {
+					mod_json = x;
+				};
+
 				if (!replaceHash) {
 					replaceHash = mod_json.replace ? genReplaceHash(xurl, mod_json.replace) : true;
 				};
@@ -714,6 +719,13 @@ function smod(log, ureq, start_url, end_compite) {
 						continue;
 					};
 
+					if (src.charCodeAt(0) === 33 && /^!!\[[\w\,]+\]\s+/.test(src)) {
+						//v = src.substring(3, src.indexOf(']'));
+						src = src.replace(/^!!\[[\w\,]+\]\s+/, '');
+
+						//nowrap = nowrap || /(^|,)nowrap(,|$)/.test(v);
+						//js_inc = /(^|,)js(,|$)/.test(v);
+					};
 
 					src = formatURL(xurl, src, replaceHash);
 
@@ -800,18 +812,33 @@ function smod(log, ureq, start_url, end_compite) {
 
 			_complite = true;
 
-			var u, a, i, l, x;
+			var u, a, i, l, x, v, nowrap, js_inc;
 
 			xmod.langs = mod_json.langs || false;
 			xmod.nowrap = mod_json.nowrap ? true : false; // не обворачивать в модуль
 
 			if (a = mod_json.scripts || mod_json.files) {
 				for(i=0, l = a.length; i<l; i+=1) {
-					if (x = a[i]) {
+					x = a[i];
+
+					if (typeof x === 'string') {
+						nowrap = xmod.nowrap;
+						js_inc = false;
+
+						if (x.charCodeAt(0) === 33 && /^!!\[[\w\,]+\]\s+/.test(x)) {
+							v = x.substring(3, x.indexOf(']'));
+							x = x.replace(/^!!\[[\w\,]+\]\s+/, '');
+
+							nowrap = nowrap || /(^|,)nowrap(,|$)/.test(v);
+							js_inc = /(^|,)js(,|$)/.test(v);
+						};
+
 						files.push({
 							moduleID: xmod.id,
 							id: files.length+1,
-							nowrap: xmod.nowrap,
+							nowrap: nowrap,
+							js_inc: js_inc,
+
 							src: formatURL(xurl, x, replaceHash)
 						});
 					};
