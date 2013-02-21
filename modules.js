@@ -76,6 +76,14 @@ process.nextTick(function() {
 function serverHendler(req, res) {
 	var q = URL.parse(req.url, true), x;
 	
+	
+	req.on('close', function() {
+		function null_func(){};
+
+		res.write = null_func;
+		res.end = null_func;
+	});
+	
 	/*
 	var tm = new Date();
 	res.__end = res.end;
