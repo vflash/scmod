@@ -78,6 +78,7 @@ function serverHendler(req, res) {
 	
 	
 	req.on('close', function() {
+		res.writeHead = NULL_FUNCTION;
 		res.write = NULL_FUNCTION;
 		res.end = NULL_FUNCTION;
 	});
