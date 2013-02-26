@@ -188,7 +188,7 @@ function serverHendler(req, res) {
 				return;
 			};
 
-			var x = dataToJSON(type, data) || false;
+			var x = dataToJSON(type, data, false, url_replace) || false;
 			if (!x.replace || typeof x.replace !== 'object') {
 				endres(res, 400, '// error data "replace" file ');
 				return;
@@ -427,7 +427,7 @@ function http_query(url, options, end) {
 	client.end();
 };
 
-function dataToJSON(type, data, log) {
+function dataToJSON(type, data, log, url) {
 	var mod_json = false;
 
 	if (typeof log !== 'function') {
@@ -443,7 +443,7 @@ function dataToJSON(type, data, log) {
 			mod_json = false;
 
 			log('error'
-				, xmod.error = (yaml ? 'error yaml' : 'error yaml no support') + ', module - ' + url + (yaml ? ('\n' + String(e)+'\n') : '')
+				, (yaml ? 'error yaml' : 'error yaml no support') + ', module - ' + url + (yaml ? ('\n' + String(e)+'\n') : '')
 			);
 		};
 
@@ -460,7 +460,7 @@ function dataToJSON(type, data, log) {
 				mod_json = false;
 
 				log('error'
-					, xmod.error = 'error json, module - ' + url + '\n'+ String(e) + '\n'
+					, 'error json, module - ' + url + '\n'+ String(e) + '\n'
 				);
 			};
 		};
@@ -597,17 +597,24 @@ function aliasURL(url) {
 		return normalizeURL(url);
 	};
 
-	url = String(url).replace(/^github:~\//, 'github:master/');
+	url = url + '';
 
 	switch(x = url.substring(0, url.indexOf(':')) ) {
 		case 'global': return url;
 
 		case 'github':
-			x = String(url).substring(String(url).indexOf(':') + 1);
+			x = String(url).substring(7).replace(/^~\//, 'master/');
 			x = /[\w-]\.[\w-]{1,7}$/.test(x) ? x : x.replace(/(\/([\w-]+)$)/, '$1/$2.json'); 
 			x = x.replace(/^([^\/]+)\/([^\/]+)\/([^\/]+)/, '$2/$3/$1')
 
 			return normalizeURL('https://raw.github.com/' + x);
+
+		case 'bitbucket':
+			x = String(url).substring(10).replace(/^~\//, 'master/');
+			x = /[\w-]\.[\w-]{1,7}$/.test(x) ? x : x.replace(/(\/([\w-]+)$)/, '$1/$2.json'); 
+			x = x.replace(/^([^\/]+)\/([^\/]+)\/([^\/]+)/, '$2/$3/raw/$1');
+
+			return normalizeURL('https://bitbucket.org/' + x);
 
 		default:
 			return normalizeURL('http://' + url);
@@ -696,7 +703,7 @@ function smod(log, ureq, start_url, end_compite) {
 					return;
 				};
 
-				mod_json = dataToJSON(type, data, log);
+				mod_json = dataToJSON(type, data, log, url);
 
 				var x = mod_json.scmod;
 				if (typeof x === 'object' && x.scmod !== null) {
