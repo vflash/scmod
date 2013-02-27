@@ -383,7 +383,7 @@ function http_query(url, options, end) {
 	var client = src.protocol === 'https:' ? HTTPS.request(query) : HTTP.request(query);
 	var comp = false;
 
-	client.setTimeout(20000, function() {
+	client.setTimeout(7000, function() {
 		if (!comp) {
 			comp = true;
 			end(408);
@@ -1757,7 +1757,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 	var options = { headers: headers,host: q.host, path: q.path};
 	var client = q.protocol === 'https:' ? HTTPS.request(options) : HTTP.request(options);
 
-	client.setTimeout(4000, function() {
+	client.setTimeout(7000, function() {
 		svres.writeHead(500, {});
 		svres.end('503');
 
