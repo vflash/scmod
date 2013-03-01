@@ -120,6 +120,24 @@ function serverHendler(req, res) {
 		return;
 	};
 
+
+	if (String(q.pathname).indexOf('/code/') === 0) {
+		res.writeHead(200
+			, {
+				'Content-Type': 'application/x-javascript; charset=UTF-8',
+				'Cache-Control': 'no-store, no-cache, must-revalidate',
+				'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+			}
+		);
+		x = String(q.pathname);
+		x = x.substr(x.lastIndexOf('/')+1);
+
+		res.end(decodeURIComponent(x) );
+
+		if (config.log) console.log('prox include - ' + x.substr(0, 77));
+		return;
+	};
+
 	if (String(q.pathname).indexOf('/file/') === 0) {
 		file_prox(req, res, q);
 		return;
@@ -551,12 +569,13 @@ function formatURL(xurl, src, replaceHash) {
 		src = xurl.protocol + '//' + xurl.host + PATH.normalize((xurl.pathname||'/') + '/../'+src);
 	} else 
 	if (src[0] == '/') {
-		src = xurl.protocol + '//' + xurl.host + PATH.normalize(src);
+		if (src[1] == '/') {
+			src = normalizeURL(xurl.protocol + src); //
+		} else {
+			src = xurl.protocol + '//' + xurl.host + PATH.normalize(src);
+		};
 	} else 
-	if (src.substr(0, 3) == '://') {
-		src = normalizeURL(xurl.protocol + src.substr(1)); //
-	} else 
-	if (String(src).indexOf(':') === -1 ) {
+	if (src.indexOf(':') === -1 ) {
 		src = xurl.protocol + '//' + xurl.host + PATH.normalize((xurl.pathname||'/') + '/../'+src);
 	} else {
 		src = normalizeURL(src);
@@ -704,9 +723,10 @@ function smod(log, ureq, start_url, end_compite) {
 				};
 
 				mod_json = dataToJSON(type, data, log, url);
+				if (!mod_json) xmod.error = 'invalid json';
 
 				var x = mod_json.scmod;
-				if (typeof x === 'object' && x.scmod !== null) {
+				if (typeof x === 'object' && x !== null) {
 					mod_json = x;
 				};
 
@@ -861,7 +881,7 @@ function smod(log, ureq, start_url, end_compite) {
 							nowrap: nowrap,
 							js_inc: js_inc,
 
-							src: formatURL(xurl, x, replaceHash)
+							src: js_inc ? x : formatURL(xurl, x, replaceHash)
 						});
 					};
 				};
@@ -968,30 +988,58 @@ function modscript(log, ureq, url, end) {
 					file = {
 						moduleID: x.moduleID, 
 						nowrap: x.nowrap,
-						src: String(x.src)
+						js_inc: x.js_inc,
+						src: (x.src + '')
 					}
 				);
 
-				file.url = x.nowrap ? x.src : url;
+				/*
+				if (x.js_inc) {
+					if (x.nowrap) {
+						file.code = x.src + '';
+						continue;
+					};
+
+					v = MDNAME[x.moduleID];
+					v = (v ? v.json(',') : 'module');
+					file.code = ''
+						+ '__MODULE('+x.moduleID+' function(global,' + v + '){\'use strict\';'
+						+ x.src
+						+ ';return [global,'+v+']});'
+					;
+
+					continue;
+				};
+				*/
 
 				if (x.nowrap) {
-					file.url = x.src;
+					if (x.js_inc) {
+						file.url = qhost + '/code-nwp/' + x.moduleID + '/' + encodeURIComponent(x.src);
+						continue;
+					};
+
+					file.url = x.src + '';
 					continue;
 				};
 
 
-				var url = qhost+'/file/'+ x.moduleID+'/';
+				var url = qhost + (x.js_inc ? '/code/' : '/file/') + x.moduleID+'/';
 
 				file.vars = 'module';
 				if (v = MDNAME[x.moduleID]) {
 					file.vars = v.map(encodeURIComponent).join(',');
-					url += file.vars;
 				};
 
-				var xurl = URL.parse(x.src);
-				url += '/' + (xurl.protocol == 'https:' ? 'https' : 'http')+'/'+xurl.host;
-				if (xurl.pathname) url += PATH.normalize(xurl.pathname);
-				if (xurl.search) url += xurl.search;
+				url += file.vars;
+				if (x.js_inc) {
+					url += '/' + encodeURIComponent(x.src);
+
+				} else {
+					var xurl = URL.parse(x.src);
+					url += '/' + (xurl.protocol == 'https:' ? 'https' : 'http')+'/'+xurl.host;
+					if (xurl.pathname) url += PATH.normalize(xurl.pathname);
+					if (xurl.search) url += xurl.search;
+				};
 
 				file.url = url;
 			};
@@ -1068,6 +1116,22 @@ function sandbox(req, url, end) {
 		};
 
 		if (files.length) {
+			/*
+			var _files_list = [];
+			var _files_code = files.map(function(v){
+				if (v.js_inc) {
+					_files_list.push('!![js] ' + v.code);
+					return '<script> ' + v.code + ' </script>'
+				};
+
+				_files_list.push(v.url);
+				return '<script src="' + v.url + '"></script>'
+			});
+			wcode += '\n\t+ '+JSON.stringify(_files_code.join(''));
+			comment += '\n/\*SCRIPTS:\n'+_files_list.join('\n')+'\n*\/\n';
+			*/
+
+
 			var _files = files.map(function(v){return v.url});
 			wcode += '\n\t+ '+JSON.stringify('<script src="' + _files.join('"></script><script src="') + '"></script>')
 			comment += '\n/*SCRIPTS:\n'+_files.join('\n')+'\n*/\n';
@@ -1286,11 +1350,13 @@ function script_pack(url, req, res, jmin, langKey) {
 
 		if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
 			res.write('\n\n/* ------ BAD: ' + url + ' */\n'); 
+			log('error', 'bad host: ' + url );
 			return next();
 		};
 
 		if ( !(q.protocol === 'http:' || q.protocol === 'https:') ) {
 			res.write('\n\n/* ------ BAD: ' + url + ' */\n');
+			log('error', 'bad protocol: ' + url );
 			return next();
 		};
 
@@ -1314,7 +1380,13 @@ function styles_pack(url, req, res, cssmin) {
 	, file_index = -1
 	, files
 	, file
+	, xurl = URL.parse(url, true)
+	, qurl
 	;
+	
+	var xroo = xurl.protocol + '//' + xurl.host;
+	var xpoo = xurl.protocol;
+
 
 	var xreq = {
 		X_Forwarded_For: req.X_Forwarded_For || null,
@@ -1328,33 +1400,70 @@ function styles_pack(url, req, res, cssmin) {
 	//console.log(req.headers)
 	
 	var buffer = [];
+	var stringBuffer = false;
 
 	var xres = {
 		writeHead: function(status) {
 			if (prx = status === 200) return;
 
 			log('error', 'error load '+status+',  file - ' + xreq.src);
-
 			res.write('/* error load, status: '+status+' */\n\n');
 		},
 
 		write: function(chunk) {
-			// if (prx) res.write(chunk);
-			if (cssmin) {
-			    if (prx) buffer.push(chunk);
-			} else {
-			    if (prx) res.write(chunk);
+			if (prx) {
+				if (cssmin) {
+					if(typeof chunk === 'string') stringBuffer = true;
+					buffer.push(chunk);
+				} else {
+					res.write(chunk);
+				};
 			};
-			
 		},
 
 		end: function() {
-			if (cssmin) {
-				res.write(
-					buffer.join('').replace(/(^|{|;|:|,|\n)\s+(?=}?)|[\t ]+(?=})|\s+(?= {)|\/\*([^\*]|\*(?=[^\/]))+\*\/\s*/g, '$1')
-				);
+			if (prx) {
+				if (cssmin) {
+					var xb = Buffer.concat(buffer).toString();
+					buffer.length = 0;
+					
+					xb = xb.replace(/(^|{|;|:|,|\n)\s+(?=}?)|[\t ]+(?=})|\s+(?= {)|\/\*([^\*]|\*(?=[^\/]))+\*\/\s*/g, '$1');
 
-				buffer.length = 0;
+					// "(\\([^"]|")|[^"\n\\])*" текст в двойной кавычке
+					// '(\\([^']|')|[^'\n\\])*' текст в ядрёной кавычке 
+
+					var xroo_length = xroo.length;
+					var xpoo_length = xpoo.length;
+					xb = xb.replace(/[:\s]url\(((\"(\\([^"]|")|[^"\n\\])*\"|'(\\([^']|')|[^'\n\\])*')|[^)]+)\)/g, function(s, a1, a2, a3) {
+						var vu = a1, esc;
+						if (vu.indexOf(':') !== -1) {
+							return s;
+						};
+
+						if (esc = a2 ? true : false) {
+							try {
+								vu = JSON.parse(a2[0] == '"' ? a2 : a2.replace(/\\(.)|(")/g, '\\$1$2') );
+							} catch(e) {
+								return s;
+							};
+						};
+
+						vu = formatURL(qurl, vu);
+
+						if (vu.substr(0, xroo_length) === xroo) {
+							vu = vu.substr(xroo_length)
+						} else {
+							if (vu.substr(0, xpoo_length) === xpoo) {
+								vu = vu.substr(xpoo_length);
+							};
+						};
+
+						return s.substr(0, 5) + JSON.stringify(vu) + ')';
+					});
+
+
+					res.write(xb);
+				};
 			};
 
 			next();
@@ -1385,7 +1494,7 @@ function styles_pack(url, req, res, cssmin) {
 	);
 
 	function next() {
-		var i;
+		var i, src;
 
 		do {
 			i = ++file_index;
@@ -1399,21 +1508,20 @@ function styles_pack(url, req, res, cssmin) {
 		} while(!file);
 
 
-		var q = URL.parse(file, true), qm;
-		var src;
+		qurl = URL.parse(file, true);
 
-		if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
+		if (!qurl.host || !/.\.[a-zA-Z]{2,7}$/.test(qurl.hostname) || /^\.|\.\.|[^\w\-\.]/.test(qurl.hostname)) {
 			res.write('\n\n/* ------ 1 BAD: ' + file + ' */\n');
 			return next();
 		};
 
-		if ( !(q.protocol === 'http:' || q.protocol === 'https:') ) {
+		if ( !(qurl.protocol === 'http:' || qurl.protocol === 'https:') ) {
 			res.write('\n\n/* ------ 2 BAD: ' + file + ' */\n');
 			return next();
 		};
 
 
-		file = String(q.href).trim();
+		file = String(qurl.href).trim();
 
 		//res.write('\n\n/* url: ' + file + ' */\n');
 		//res.write('\n\n/* url: ' + file.replace(/^http:\/\/[^\/]+/, function(x) {return crypto.createHash('md5').update(x).digest('hex').substr(-7)}) + ' */\n');
@@ -1424,9 +1532,10 @@ function styles_pack(url, req, res, cssmin) {
 		prx = true;
 
 		xreq.src = file;
+
 		prox(String(file), xreq, xres, false
-			, ''
-			, ''
+			, false
+			, false
 		);
 	};
 
@@ -1844,7 +1953,9 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 			if (chunk.length) {
 				if (datastart) {
 					datastart = false;
-					svres.write(xA);
+					if (xA) {
+						svres.write(xA);
+					};
 				};
 
 				svres.write(chunk);
@@ -1853,9 +1964,10 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 
 		response.on('end', function() {
 			if (datastart) {
-				svres.write('/* file null */');
+				svres.write(new Buffer('/* file null */') );
+
 			} else {
-				svres.write(xB);
+				if (xB) svres.write(xB);
 			};
 
 			svres.end();
