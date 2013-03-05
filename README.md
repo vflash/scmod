@@ -94,7 +94,9 @@ return [global,module,core,cram,xhr_send,elems,tmpl]});
 ```js
 __MODULE(2, function(global,feed,...
 	... код js файла ...
-... });
+
+	return [global,feed,... ];
+});
 ```
 
 
