@@ -276,7 +276,7 @@ location /scmod/ {
  - Дать возможность указывать зависимости непосредственно в js-файле. Используя конструкции вида:
 
 ```js
-import core '../core/core.json';
+import '../core/core.json' as core;
 
 var xx = ...;
 ...
