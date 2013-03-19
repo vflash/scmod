@@ -21,7 +21,7 @@ web сервис для написания javascript кода в модульн
 
 модуль описывается файлом в формате json
 
-пример модуля - http://zzreader.com/js/zzreader/cmps/cmps.moon_frame.json
+пример модуля - http://zzreader.com/src/zzreader/cmps/cmps.moon_frame.json
 ```js
 {
 	"modules": {
@@ -157,7 +157,7 @@ js-файлы будут подключенны без изменений как
 
 **метод /sandbox** - генерирует js файл для разработки
 
-пример - http://scmod.vflash.ru/sandbox?src=http://zzreader.com/js/zzreader/feedreader.json
+пример - http://scmod.vflash.ru/sandbox?src=http://zzreader.com/src/zzreader/feedreader.json
 
 	- src - абсолютный путь до корневого модуля. 
 	- auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
@@ -180,7 +180,7 @@ js-файлы будут подключенны без изменений как
 
 **метод /langs** - генерирует список локализации
 
-пример - http://scmod.vflash.ru/langs?for=en,de&src=http://zzreader.com/js/zzreader/feedreader.json
+пример - http://scmod.vflash.ru/langs?for=en,de&src=http://zzreader.com/src/zzreader/feedreader.json
 
 	- src - абсолютный путь до корневого модуля. 
 	- auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
