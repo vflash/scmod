@@ -167,9 +167,9 @@ js-файлы будут подключенны без изменений как
 ```html
 <html>
 	<head>
-		<script src="http://scmod.vflash.ru/sandbox?src=http://zzreader.com/js/zzreader/feedreader.json"></script>
+		<script src="http://scmod.vflash.ru/sandbox?src=http://zzreader.com/src/zzreader/feedreader.json"></script>
 		<noscript>
-			<link rel="stylesheet" href="http://scmod.vflash.ru/sandbox_styles?src=http://zzreader.com/js/zzreader/feedreader.json" type="text/css" />
+			<link rel="stylesheet" href="http://scmod.vflash.ru/sandbox_styles?src=http://zzreader.com/src/zzreader/feedreader.json" type="text/css" />
 		</noscript>
 
 	</head>
@@ -194,7 +194,7 @@ js-файлы будут подключенны без изменений как
 
 **метод /scripts** - обьединяет все js-файлы в один
 
-пример - http://scmod.vflash.ru/scripts?lang=en&src=http://zzreader.com/js/zzreader/feedreader.json
+пример - http://scmod.vflash.ru/scripts?lang=en&src=http://zzreader.com/src/zzreader/feedreader.json
 	
 	- src - абсолютный путь до корневого модуля. 
 	- auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
@@ -203,7 +203,7 @@ js-файлы будут подключенны без изменений как
 
 **метод /styles** - обьединяет все css-файлы в один
 
-пример - http://scmod.vflash.ru/styles?src=http://zzreader.com/js/zzreader/feedreader.json
+пример - http://scmod.vflash.ru/styles?src=http://zzreader.com/src/zzreader/feedreader.json
 
 	- src - абсолютный путь до корневого модуля. 
 	- auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
@@ -256,7 +256,7 @@ server {
 
 если нет возможности выделить отдельный домен то нужно будет указать дополнительные заголовки
 ```
-# vflash.ru/scmod/sandbox?src=http://zzreader.com/js/zzreader/feedreader.json
+# vflash.ru/scmod/sandbox?src=http://zzreader.com/src/zzreader/feedreader.json
 
 location /scmod/ {
     proxy_pass http://127.0.0.1:1777/;
