@@ -21,7 +21,7 @@ web сервис для написания javascript кода в модульн
 
 модуль описывается файлом в формате json
 
-пример модуля - http://zzreader.com/js/zzreader/cmps/cmps.moon_frame.json
+пример модуля - http://zzreader.com/src/zzreader/cmps/cmps.moon_frame.json
 ```js
 {
 	"modules": {
@@ -94,7 +94,9 @@ return [global,module,core,cram,xhr_send,elems,tmpl]});
 ```js
 __MODULE(2, function(global,feed,...
 	... код js файла ...
-... });
+
+	return [global,feed,... ];
+});
 ```
 
 
@@ -155,7 +157,7 @@ js-файлы будут подключенны без изменений как
 
 **метод /sandbox** - генерирует js файл для разработки
 
-пример - http://scmod.vflash.ru/sandbox?src=http://zzreader.com/js/zzreader/feedreader.json
+пример - http://scmod.vflash.ru/sandbox?src=http://zzreader.com/src/zzreader/feedreader.json
 
 	- src - абсолютный путь до корневого модуля. 
 	- auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
@@ -165,9 +167,9 @@ js-файлы будут подключенны без изменений как
 ```html
 <html>
 	<head>
-		<script src="http://scmod.vflash.ru/sandbox?src=http://zzreader.com/js/zzreader/feedreader.json"></script>
+		<script src="http://scmod.vflash.ru/sandbox?src=http://zzreader.com/src/zzreader/feedreader.json"></script>
 		<noscript>
-			<link rel="stylesheet" href="http://scmod.vflash.ru/sandbox_styles?src=http://zzreader.com/js/zzreader/feedreader.json" type="text/css" />
+			<link rel="stylesheet" href="http://scmod.vflash.ru/sandbox_styles?src=http://zzreader.com/src/zzreader/feedreader.json" type="text/css" />
 		</noscript>
 
 	</head>
@@ -178,7 +180,7 @@ js-файлы будут подключенны без изменений как
 
 **метод /langs** - генерирует список локализации
 
-пример - http://scmod.vflash.ru/langs?for=en,de&src=http://zzreader.com/js/zzreader/feedreader.json
+пример - http://scmod.vflash.ru/langs?for=en,de&src=http://zzreader.com/src/zzreader/feedreader.json
 
 	- src - абсолютный путь до корневого модуля. 
 	- auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
@@ -192,7 +194,7 @@ js-файлы будут подключенны без изменений как
 
 **метод /scripts** - обьединяет все js-файлы в один
 
-пример - http://scmod.vflash.ru/scripts?lang=en&src=http://zzreader.com/js/zzreader/feedreader.json
+пример - http://scmod.vflash.ru/scripts?lang=en&src=http://zzreader.com/src/zzreader/feedreader.json
 	
 	- src - абсолютный путь до корневого модуля. 
 	- auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
@@ -201,7 +203,7 @@ js-файлы будут подключенны без изменений как
 
 **метод /styles** - обьединяет все css-файлы в один
 
-пример - http://scmod.vflash.ru/styles?src=http://zzreader.com/js/zzreader/feedreader.json
+пример - http://scmod.vflash.ru/styles?src=http://zzreader.com/src/zzreader/feedreader.json
 
 	- src - абсолютный путь до корневого модуля. 
 	- auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
@@ -254,7 +256,7 @@ server {
 
 если нет возможности выделить отдельный домен то нужно будет указать дополнительные заголовки
 ```
-# vflash.ru/scmod/sandbox?src=http://zzreader.com/js/zzreader/feedreader.json
+# vflash.ru/scmod/sandbox?src=http://zzreader.com/src/zzreader/feedreader.json
 
 location /scmod/ {
     proxy_pass http://127.0.0.1:1777/;
@@ -276,7 +278,7 @@ location /scmod/ {
  - Дать возможность указывать зависимости непосредственно в js-файле. Используя конструкции вида:
 
 ```js
-import core '../core/core.json';
+import '../core/core.json' as core;
 
 var xx = ...;
 ...
