@@ -1,6 +1,8 @@
 ﻿'use strict';
 
 
+require('./lib/http-xak.js');
+
 var HTTP = require('http');
 var HTTPS = require('https');
 var URL = require('url');
@@ -39,8 +41,9 @@ var config = (function() {
 
 //process.setMaxListeners(0);
 //HTTP.globalAgent.maxSockets = 1;
-HTTPS.globalAgent.maxSockets = 1;
 
+/*
+HTTPS.globalAgent.maxSockets = 1;
 HTTPS.globalAgent.addRequest = function(req, host, port) {
   var name = host + ':' + port, x;
   if (!this.sockets[name]) this.sockets[name] = [];
@@ -60,7 +63,7 @@ HTTPS.globalAgent.addRequest = function(req, host, port) {
   };
 };
 
-
+*/
 
 
 
@@ -386,6 +389,7 @@ function http_query(url, options, end) {
 	options = options || false;
 
 	var query = {
+		rejectUnauthorized: false,
 		method:'GET',
 		headers: {
 			'x-forwarded-for' : options.X_Forwarded_For || null,
@@ -1863,7 +1867,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 	//var options = { headers: headers,host: 'vflash.ru', path: (q.protocol === 'https:' ? '/prx/https/' : 'prx/http/') + q.host + q.path};
 	//var client = HTTP.request(options);
 
-	var options = { headers: headers,host: q.host, path: q.path};
+	var options = {rejectUnauthorized: false, headers: headers,host: q.host, path: q.path};
 	var client = q.protocol === 'https:' ? HTTPS.request(options) : HTTP.request(options);
 
 	client.setTimeout(7000, function() {
