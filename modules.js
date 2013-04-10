@@ -1250,7 +1250,7 @@ function script_pack(url, req, res, jmin, langKey) {
 		},
 
 		end: function() {
-			var code = buffer.join(''), lang, x;
+			var code = Buffer.concat(buffer).toString(), lang, x;
 			buffer.length = 0;
 
 			if (jmin) {
@@ -1404,7 +1404,6 @@ function styles_pack(url, req, res, cssmin) {
 	//console.log(req.headers)
 	
 	var buffer = [];
-	var stringBuffer = false;
 
 	var xres = {
 		writeHead: function(status) {
@@ -1417,7 +1416,6 @@ function styles_pack(url, req, res, cssmin) {
 		write: function(chunk) {
 			if (prx) {
 				if (cssmin) {
-					if(typeof chunk === 'string') stringBuffer = true;
 					buffer.push(chunk);
 				} else {
 					res.write(chunk);
@@ -1924,7 +1922,6 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 		headers['content-type'] = 'application/x-javascript; charset=UTF-8';
 
 		if (x = headers['content-length']) {
-			//headers['content-length'] = (+x + xA.length + xB.length) || 0;
 			delete(headers['content-length']);
 		};
 
@@ -1958,7 +1955,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 				if (datastart) {
 					datastart = false;
 					if (xA) {
-						svres.write(xA);
+						svres.write(typeof xA === 'string' ? new Buffer(xA) : xA);
 					};
 				};
 
@@ -1971,7 +1968,7 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 				svres.write(new Buffer('/* file null */') );
 
 			} else {
-				if (xB) svres.write(xB);
+				if (xB) svres.write(typeof xB === 'string' ? new Buffer(xB) : xB);
 			};
 
 			svres.end();
