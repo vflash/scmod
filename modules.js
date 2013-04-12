@@ -1265,7 +1265,6 @@ function script_pack(url, req, res, jmin, langKey) {
 			};
 
 			if (lang = langKey ? langs[modID] : false) {
-
 				code = code.replace(/\/\*([^*]|\*(?=[^\/]))+\*\/|\/(\\\\|\\\/|[^\/\n])+\/|\'(\\\\|\\\'|[^\'])*'|\"(\\\\|\\\"|[^\"])*\"/g
 					, function(x) {
 						if (x.charCodeAt(0) !== 34) return x;
