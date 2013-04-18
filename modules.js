@@ -124,27 +124,40 @@ function serverHendler(req, res) {
 	};
 
 
-	if (String(q.pathname).indexOf('/code/') === 0) {
+	if (/^\/code(-nwp)?\//.test(q.pathname) ) {
 		res.writeHead(200
 			, {
 				'Content-Type': 'application/x-javascript; charset=UTF-8',
 				'Cache-Control': 'no-store, no-cache, must-revalidate',
 				'Expires': 'Thu, 01 Jan 1970 00:00:01 GMT'
+				//'Expires': new Date(new Date() + 60000 * 60 *24 * 10).toUTCString()
 			}
 		);
-		x = String(q.pathname);
-		x = x.substr(x.lastIndexOf('/')+1);
 
-		res.end(decodeURIComponent(x) );
+		var x;
 
-		if (config.log) console.log('prox include - ' + x.substr(0, 77));
+		if (String(q.pathname).indexOf('/code-nwp/') === 0) {
+			x = (q.pathname + '');
+			x = decodeURIComponent( x.substr(x.lastIndexOf('/')+1) );
+
+			res.end(x);
+
+		} else {
+			var qm = String(q.path).match(/\/code\/(\d+)\/([^\/]+)\/(.+)/) || false;
+			var x = decodeURIComponent(qm[3]);
+
+			qm[2] = qm[2] ? (qm[2][0] === '-' ? qm[2].replace('-', 'module') : qm[2]) : 'module';
+
+			res.end('__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';' + x + ';return [global,'+qm[2]+']});');
+		};
+
+		if (config.log) {
+			console.log('inc \t' + x.substr(0, 77));
+		};
+
 		return;
 	};
 
-	if (String(q.pathname).indexOf('/file/') === 0) {
-		file_prox(req, res, q);
-		return;
-	};
 
 	if (q.query.auth !== 'base') {
 		if (req.headers['authorization']) {
@@ -152,6 +165,7 @@ function serverHendler(req, res) {
 		};
 
 	} else {
+
 		if (!req.headers['authorization']) {
 			res.writeHead(401
 				, {
@@ -168,22 +182,11 @@ function serverHendler(req, res) {
 	};
 
 
-
-
-	/*
-	var src = q.query.src || '';
-	if (/^https?:\/\//.test(src) ) {
-		src = normalizeURL(src);
-
-	} else {
-		if ((src[0] == '.' || src[0] == '/') && String(req.headers['referer']).indexOf('http://') === 0 ) {
-			src = formatURL(URL.parse(String(req.headers['referer'])), src);
-
-		} else {
-			src = false;
-		};
+	if (String(q.pathname).indexOf('/file/') === 0) {
+		file_prox(req, res, q);
+		return;
 	};
-	*/
+
 
 
 	var src = aliasURL(q.query.src, false);
@@ -871,12 +874,12 @@ function smod(log, ureq, start_url, end_compite) {
 						nowrap = xmod.nowrap;
 						js_inc = false;
 
-						if (x.charCodeAt(0) === 33 && /^!!\[[\w\,]+\]\s+/.test(x)) {
+						if (x.charCodeAt(0) === 33 && /^!!\[[\w\s\,-]+\]\s+/.test(x)) {
 							v = x.substring(3, x.indexOf(']'));
-							x = x.replace(/^!!\[[\w\,]+\]\s+/, '');
+							x = x.replace(/^!!\[[^\[\]]*\]\s+/, '');
 
-							nowrap = nowrap || /(^|,)nowrap(,|$)/.test(v);
-							js_inc = /(^|,)js(,|$)/.test(v);
+							nowrap = nowrap || /(^|,)\s*nowrap\s*(,|$)/.test(v);
+							js_inc = /(^|,)\s*(inc)\s*(,|$)/.test(v);
 						};
 
 						files.push({
@@ -1019,10 +1022,11 @@ function modscript(log, ureq, url, end) {
 				if (x.nowrap) {
 					if (x.js_inc) {
 						file.url = qhost + '/code-nwp/' + x.moduleID + '/' + encodeURIComponent(x.src);
+						
 						continue;
 					};
 
-					file.url = x.src + '';
+					file.url = (x.src + '');
 					continue;
 				};
 
@@ -1240,16 +1244,11 @@ function script_pack(url, req, res, jmin, langKey) {
 
 		write: function(chunk) {
 			if (prx) buffer.push(chunk);
-			/*
-			if (jmin) {
-				if (prx) buffer.push(chunk);
-			} else {
-				if (prx) res.write(chunk);
-			};
-			*/
 		},
 
-		end: function() {
+		end: function(chunk) {
+			if (chunk && prx) buffer.push(chunk);
+
 			var code = Buffer.concat(buffer).toString(), lang, x;
 			buffer.length = 0;
 
@@ -1350,6 +1349,18 @@ function script_pack(url, req, res, jmin, langKey) {
 			sfoot = '\nreturn [global,'+(file.vars||'module')+']});'
 		};
 
+		if (file.js_inc) {
+			if (config.log) {
+				console.log('inc \t ' + String(file.src).substr(0, 77));
+			};
+
+			res.write('\n\n/* -- inline code -- */\n');
+
+			xres.writeHead(200);
+			xres.end(new Buffer(shead + file.src + sfoot));
+
+			return;
+		};
 
 		if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname)) {
 			res.write('\n\n/* ------ BAD: ' + url + ' */\n'); 
@@ -1363,8 +1374,8 @@ function script_pack(url, req, res, jmin, langKey) {
 			return next();
 		};
 
-		res.write('\n\n/* url: ' + String(url).replace(/^https?:\/\/[^\/]+/, '---') + ' */\n');
 
+		res.write('\n\n/* url: ' + String(url).replace(/^https?:\/\/[^\/]+/, '---') + ' */\n');
 		prox(xres.src = url, xreq, xres, false, shead, sfoot);
 	};
 
@@ -1885,7 +1896,11 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 	};
 	*/
 
+	var stop = false;
+
 	client.on('error', function(e) {
+		if (stop) return;
+
 		svres.writeHead(500, {});
 		svres.end('500');
 		
@@ -1910,11 +1925,12 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 
 		//headers['content-type'] = 'application/x-javascript; charset=UTF-8';
 
-		if (response.statusCode != 200) {
-			svres.writeHead(response.statusCode, headers);
+		if (response.statusCode !== 200) {
+			stop = true;
 
-			//response.on('data', function(c){svres.write(c)});
-			response.on('end', function(){svres.end()});
+			svres.writeHead(response.statusCode, headers);
+			client.abort();
+			svres.end();
 			return;
 		};
 
@@ -1963,6 +1979,8 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 		});
 
 		response.on('end', function() {
+			stop = true;
+
 			if (datastart) {
 				svres.write(new Buffer('/* file null */') );
 
@@ -2019,13 +2037,16 @@ function file_prox(req, res, q) {
 
 	//console.log(qm);
 
-	var file;
+	var file, code, q;
 
 	if (qm) {
+		qm[2] = qm[2] ? (qm[2][0] === '-' ? qm[2].replace('-', 'module') : qm[2]) : 'module';
+
 		var q = URL.parse((qm[3] == 'https' ? 'https://' : 'http://') + qm[4], true);
 
 		if (!q.host || !/.\.[a-zA-Z]{2,7}$/.test(q.hostname) || /^\.|\.\.|[^\w\-\.]/.test(q.hostname) || !(q.protocol === 'http:' || q.protocol === 'https:') ) {
 			file = false;
+
 		} else {
 			file = q.href;
 		};
@@ -2044,11 +2065,6 @@ function file_prox(req, res, q) {
 		return;
 	};
 
-	if (!qm[2]) qm[2] = 'module';
-
-	if (qm[2][0] === '-') {
-		qm[2] = qm[2].replace('-', 'module');
-	};
 
 	prox(file, req, res, true
 		, '__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';'
