@@ -1443,36 +1443,42 @@ function styles_pack(url, req, res, cssmin) {
 
 					// "(\\([^"]|")|[^"\n\\])*" текст в двойной кавычке
 					// '(\\([^']|')|[^'\n\\])*' текст в ядрёной кавычке 
+					
+
 
 					var xroo_length = xroo.length;
 					var xpoo_length = xpoo.length;
-					xb = xb.replace(/[:\s]url\(((\"(\\([^"]|")|[^"\n\\])*\"|'(\\([^']|')|[^'\n\\])*')|[^)]+)\)/g, function(s, a1, a2, a3) {
-						var vu = a1, esc;
-						if (vu.indexOf(':') !== -1) {
-							return s;
-						};
 
-						if (esc = a2 ? true : false) {
-							try {
-								vu = JSON.parse(a2[0] == '"' ? a2 : a2.replace(/\\(.)|(")/g, '\\$1$2') );
-							} catch(e) {
+					xb = xb.replace(/[:\s\(,]url\(\s*("(\\([^"]|")|[^"\n\\])+"|'(\\([^']|')|[^'\n\\])+'|[^)]+)\s*\)|"(\\([^"]|")|[^"\n\\])+"|'(\\([^']|')|[^'\n\\])*'/g
+						, function(s, x) {
+							if (!x || x.indexOf(':') !== -1) {
 								return s;
 							};
-						};
-
-						vu = formatURL(qurl, vu);
-
-						if (vu.substr(0, xroo_length) === xroo) {
-							vu = vu.substr(xroo_length)
-						} else {
-							if (vu.substr(0, xpoo_length) === xpoo) {
-								vu = vu.substr(xpoo_length);
+							
+							if (x[0] === '\'') {
+								x = '"' + x.slice(1, -1).replace(/\\(.)|(")/g, '\\$1$2') + '"';
 							};
-						};
 
-						return s.substr(0, 5) + JSON.stringify(vu) + ')';
-					});
+							if (x[0] === '"') {
+								try {x = JSON.parse(x)} catch(e) {
+									return s;
+								};
+							};
 
+							x = formatURL(qurl, x);
+							
+							if (x.substr(0, xroo_length) === xroo) {
+								x = x.substr(xroo_length)
+							} else {
+								if (x.substr(0, xpoo_length) === xpoo) {
+									x = x.substr(xpoo_length);
+								};
+							};
+
+							return s.substr(0, 5) + JSON.stringify(x) + ')';
+							
+						}
+					);
 
 					res.write(xb);
 				};
