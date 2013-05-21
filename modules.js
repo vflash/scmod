@@ -148,7 +148,7 @@ function serverHendler(req, res) {
 
 			qm[2] = qm[2] ? (qm[2][0] === '-' ? qm[2].replace('-', 'module') : qm[2]) : 'module';
 
-			res.end('__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';' + x + ';return [global,'+qm[2]+']});');
+			res.end('__MODULE('+qm[1]+', function(global,'+qm[2]+',__zAgS_){\'use strict\';__zAgS_(function(){return [global,'+qm[2]+']});' + x + '});');
 		};
 
 		if (config.log) {
@@ -1010,9 +1010,9 @@ function modscript(log, ureq, url, end) {
 					v = MDNAME[x.moduleID];
 					v = (v ? v.json(',') : 'module');
 					file.code = ''
-						+ '__MODULE('+x.moduleID+' function(global,' + v + '){\'use strict\';'
+						+ '__MODULE('+x.moduleID+' function(global,' + v + ',__zAgS_){\'use strict\';__zAgS_(function(){return [global,'+v+']});'
 						+ x.src
-						+ ';return [global,'+v+']});'
+						+ '});'
 					;
 
 					continue;
@@ -1345,8 +1345,8 @@ function script_pack(url, req, res, jmin, langKey) {
 
 
 		if (!file.nowrap) {
-			shead = '__MODULE('+file.moduleID+', function(global,'+(file.vars||'module')+'){\'use strict\';\n'
-			sfoot = '\nreturn [global,'+(file.vars||'module')+']});'
+			shead = '__MODULE('+file.moduleID+', function(global,'+(file.vars||'module')+',__zAgS_){\'use strict\';__zAgS_(function(){return[global,'+(file.vars||'module')+']});\n'
+			sfoot = '\n});'
 		};
 
 		if (file.js_inc) {
@@ -1766,18 +1766,10 @@ function __MODULE(id, modfunc) {
 	};
 
 
-	//try {
-	var r = modfunc.apply(global, args);
+	var dx; args.push(function(x) {dx = dx||x});
+	modfunc.apply(global, args);
 
-	if ((r instanceof Array) && r.length == args.length) {
-		r = [].concat(r);
-		r[0] = global;
-
-		MODULES[id] = r[1];
-		depend[id] = r;
-	};
-
-	//} catch (e) {};
+	MODULES[id] = (depend[id] = dx())[1];
 };
 
 
@@ -2073,8 +2065,8 @@ function file_prox(req, res, q) {
 
 
 	prox(file, req, res, true
-		, '__MODULE('+qm[1]+', function(global,'+qm[2]+'){\'use strict\';'
-		, '\nreturn [global,'+qm[2]+']});'
+		, '__MODULE('+qm[1]+', function(global,'+qm[2]+',__zAgS_){\'use strict\';__zAgS_(function(){return [global,'+qm[2]+']});'
+		, '\n});'
 	);
 };
 
