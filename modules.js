@@ -33,7 +33,7 @@ var config = (function() {
 			} catch(e) {};
         };
 
-		x = require('config-simple.js');
+		x = require('./config-sample.js');
         return x;
 })();
 
