@@ -15,7 +15,7 @@
 		"url" : "http://vflash.ru"
 	},
 	
-	"files":["modules.js", "config-sample.js", "lib/jsmin.js", "lib/js-json.js", "LICENSE", "README.md", "scmod.conf", "start"],
+	"files":["modules.js", "config-sample.js", "lib/jsmin.js", "lib/js-json.js", "lib/http-xak.js", "LICENSE", "README.md", "scmod.conf", "start"],
 	
 	"repository": {
 		"type": "git",
