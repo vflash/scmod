@@ -10,6 +10,7 @@ var PATH = require('path');
 var qs = require('querystring');
 var jsmin = require('./lib/jsmin.js');
 var jsToJSON = require('./lib/js-json.js').conv;
+var FS = require('fs');
 //var crypto = require('crypto');
 
 var yaml = false;
@@ -148,7 +149,7 @@ function serverHendler(req, res) {
 
 			qm[2] = qm[2] ? (qm[2][0] === '-' ? qm[2].replace('-', 'module') : qm[2]) : 'module';
 
-			res.end('__MODULE('+qm[1]+', function(global,'+qm[2]+',__zAgS_){\'use strict\';__zAgS_(function(){return [global,'+qm[2]+']});' + x + '});');
+			res.end('__MODULE('+qm[1]+', function(global,'+qm[2]+',__zAgS_){\'use strict\';__zAgS_(function(){return[global,'+qm[2]+']});' + x + '});');
 		};
 
 		if (config.log) {
@@ -1010,7 +1011,7 @@ function modscript(log, ureq, url, end) {
 					v = MDNAME[x.moduleID];
 					v = (v ? v.json(',') : 'module');
 					file.code = ''
-						+ '__MODULE('+x.moduleID+' function(global,' + v + ',__zAgS_){\'use strict\';__zAgS_(function(){return [global,'+v+']});'
+						+ '__MODULE('+x.moduleID+' function(global,' + v + ',__zAgS_){\'use strict\';__zAgS_(function(){return[global,'+v+']});'
 						+ x.src
 						+ '});'
 					;
@@ -1840,6 +1841,38 @@ function prox(url, svreq, svres, UTFBOM, xA, xB) {
 	if (config.log) console.log('prox \t', url);
 
 	var q = URL.parse(url, true), x;
+
+	/*
+	if (q.protocol === 'file:') {
+		FS.readFile(q.path, function (err, data) {
+			if (err) {
+
+				svres.writeHead(404, {});
+				svres.end('404');
+				return;
+			};
+
+			svres.writeHead(200, {});
+
+			if (chunk[0] == 0xEF && chunk[1] == 0xBB && chunk[2] == 0xBF ) {
+				if (UTFBOM) svres.write(chunk.slice(0, 3));
+
+				chunk = chunk.slice(3);
+			};
+
+			if (xA) svres.write(typeof xA === 'string' ? new Buffer(xA) : xA);
+
+			svres.write(chunk);
+
+			if (xB) svres.write(typeof xB === 'string' ? new Buffer(xB) : xB);
+
+			svres.end();
+		});
+
+		return;
+	};
+	*/
+
 	var headers = {host: String(q.host)};
 
 	if (x = svreq.headers['if-modified-since']) {
@@ -2065,7 +2098,7 @@ function file_prox(req, res, q) {
 
 
 	prox(file, req, res, true
-		, '__MODULE('+qm[1]+', function(global,'+qm[2]+',__zAgS_){\'use strict\';__zAgS_(function(){return [global,'+qm[2]+']});'
+		, '__MODULE('+qm[1]+', function(global,'+qm[2]+',__zAgS_){\'use strict\';__zAgS_(function(){return[global,'+qm[2]+']});'
 		, '\n});'
 	);
 };
