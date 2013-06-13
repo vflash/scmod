@@ -1,3 +1,0 @@
-#!sh
-node ../lib/console.js -cmd=langs $@
-

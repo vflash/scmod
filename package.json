@@ -4,10 +4,11 @@
 	"keywords": ["javascript", "modules"],
 	"version": "0.2.1",
 
-	"main" : "./module.js",
+	"main" : "./index.js",
 
+	"homepage": "https://github.com/nodeca/js-yaml",
 	"bugs": {
-		"url": "https://github.com/vflash/scmod/issues"
+		"url": "https://github.com/vflash/scmod"
 	},
 
 	"author":{ 
@@ -44,9 +45,12 @@
 		"lib/jsmin.js"
 	],
 	
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/vflash/scmod"
-	}
+	"bin": {
+		"scmod_scripts": "bin/scmod_scripts",
+		"scmod_styles": "bin/scmod_styles",
+		"scmod_langs": "bin/scmod_langs"
+	},
+	
+	"repository": {"type": "git", "url": "git://github.com/vflash/scmod.git"}
 }
 
