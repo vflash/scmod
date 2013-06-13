@@ -227,7 +227,7 @@ js-файлы будут подключенны без изменений как
 
 для Ubuntu подготовлен файл upstart
 ```bash
-[sudo] ln -s /etc/init/scmod.conf /usr/local/lib/node_modules/scmod.conf
+[sudo] cp /usr/local/lib/node_modules/scmod/scmod.conf /etc/init/scmod.conf
 [sudo] start scmod
 ```
 
