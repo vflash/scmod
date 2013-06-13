@@ -1,0 +1,3 @@
+#!sh
+node ../lib/console.js -cmd=scripts $@
+
