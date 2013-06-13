@@ -234,7 +234,7 @@ js-файлы будут подключенны без изменений как
 для других ОС можно воспользоватья forever
 ```bash
 [sudo] npm install forever -g
-[sudo] forever start /usr/local/lib/node_modules/scmod/modules.js
+[sudo] forever start /usr/local/lib/node_modules/scmod/index.js
 ```
 
 Настройка nginx
