@@ -2,7 +2,8 @@
 	"name" : "scmod",
 	"description": "client side javascript modules",
 	"keywords": ["javascript", "modules"],
-	"version": "0.1.28",
+	"version": "0.2.1",
+
 	"main" : "./module.js",
 
 	"bugs": {
@@ -14,13 +15,38 @@
 		"email" : "flash.vkv@gmail.com",
 		"url" : "http://vflash.ru"
 	},
+
+	"dependencies": ["js-json", "http-xak"],
 	
-	"files":["modules.js", "config-sample.js", "lib/jsmin.js", "lib/js-json.js", "lib/http-xak.js", "LICENSE", "README.md", "scmod.conf", "start"],
+	"files":[
+		"LICENSE", 
+		"README.md", 
+		"scmod.conf", 
+
+		"bin/scmod_scripts",
+		"bin/scmod_styles",
+		"bin/scmod_langs",
+		"index.js", "modules.js",
+		"config-sample.js",
+
+		"lib/server.js",
+		"lib/console.js",
+		"lib/load-config.js",
+		"lib/cmd-sandbox.js",
+		"lib/cmd-sandbox_styles.js",
+		"lib/cmd-script_pack.js",
+		"lib/cmd-script_langs.js",
+		"lib/cmd-styles_pack.js",
+		"lib/file-load.js",
+		"lib/file-prox.js",
+		"lib/modscript.js",
+		"lib/tools.js",
+		"lib/jsmin.js"
+	],
 	
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/vflash/scmod"
 	}
-
 }
 
