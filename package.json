@@ -46,9 +46,9 @@
 	],
 	
 	"bin": {
-		"scmod_scripts": "bin/scmod_scripts",
-		"scmod_styles": "bin/scmod_styles",
-		"scmod_langs": "bin/scmod_langs"
+		"scmod-scripts": "bin/scmod-scripts",
+		"scmod-styles": "bin/scmod-styles",
+		"scmod-langs": "bin/scmod-langs"
 	},
 	
 	"repository": {"type": "git", "url": "git://github.com/vflash/scmod.git"}

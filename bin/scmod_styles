@@ -1,7 +1,0 @@
-#!/bin/sh
-
-X=`readlink -f "$(dirname "$0")"`/$(readlink $0)
-X=`dirname $X`
-
-node $X/../lib/console.js -cmd=styles $@
-
