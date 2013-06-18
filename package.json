@@ -2,7 +2,7 @@
 	"name" : "scmod",
 	"description": "client side javascript modules",
 	"keywords": ["javascript", "modules"],
-	"version": "0.2.3",
+	"version": "0.2.4",
 
 	"main" : "./index.js",
 
@@ -24,9 +24,9 @@
 		"README.md", 
 		"scmod.conf", 
 
-		"bin/scmod_scripts",
-		"bin/scmod_styles",
-		"bin/scmod_langs",
+		"bin/scmod-scripts",
+		"bin/scmod-styles",
+		"bin/scmod-langs",
 		"index.js", "modules.js",
 		"config-sample.js",
 
