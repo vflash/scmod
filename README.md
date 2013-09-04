@@ -21,7 +21,7 @@ web сервис для написания javascript кода в модульн
 
 модуль описывается файлом в формате json
 
-пример модуля - http://zzreader.com/src/zzreader/cmps/cmps.moon_frame.json
+пример модуля - http://zzreader.com/src/cmps/cmps.moon_frame.json
 ```js
 {
 	"modules": {
