@@ -287,8 +287,7 @@ location /scmod/ {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP  $remote_addr;
 
-    proxy_set_header X-SCMOD-HOST  $host/scmod;
-    proxy_set_header X-SCMOD-SCHEME $scheme;
+    proxy_set_header X-SCMOD-HOST  $scheme://$host/scmod;
 }
 ```
 
