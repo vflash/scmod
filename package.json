@@ -2,7 +2,7 @@
 	"name" : "scmod",
 	"description": "client side javascript modules",
 	"keywords": ["javascript", "modules"],
-	"version": "0.2.11",
+	"version": "0.2.12",
 
 	"main" : "./index.js",
 
