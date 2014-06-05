@@ -250,7 +250,7 @@ scmod-langs -for=en,ru,de ./side-zzreader/src/zzreader/feedreader.json
 ```
 после нужно скопировать файл настройки сервиса scmod
 ```bash
-[sudo] cp /usr/local/lib/node_modules/scmod/config.js  /usr/local/etc/scmod/config.js
+[sudo] cp /usr/local/lib/node_modules/scmod/config-sample.js  /usr/local/etc/scmod/config.js
 ```
 правим настройки под себя
 
