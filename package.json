@@ -2,7 +2,7 @@
 	"name" : "scmod",
 	"description": "client side javascript modules",
 	"keywords": ["javascript", "modules"],
-	"version": "0.2.21",
+	"version": "0.2.22",
 
 	"main" : "./index.js",
 
@@ -17,7 +17,7 @@
 		"url" : "http://vflash.ru"
 	},
 
-	"dependencies": ["js-json", "http-xak"],
+	"dependencies": ["js-json", "http-xak", "js-yaml"],
 	
 	"files":[
 		"LICENSE", 
