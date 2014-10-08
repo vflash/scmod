@@ -11,18 +11,18 @@
 		"url": "https://github.com/vflash/scmod/issues"
 	},
 
-	"author":{ 
+	"author":{
 		"name" : "Vopilovskiy Konstantin",
 		"email" : "flash.vkv@gmail.com",
 		"url" : "http://vflash.ru"
 	},
 
 	"dependencies": ["js-json", "http-xak", "js-yaml"],
-	
+
 	"files":[
-		"LICENSE", 
-		"README.md", 
-		"scmod.conf", 
+		"LICENSE",
+		"README.md",
+		"scmod.conf",
 
 		"bin/scmod-scripts",
 		"bin/scmod-styles",
@@ -44,13 +44,13 @@
 		"lib/tools.js",
 		"lib/jsmin.js"
 	],
-	
+
 	"bin": {
 		"scmod-scripts": "bin/scmod-scripts",
 		"scmod-styles": "bin/scmod-styles",
 		"scmod-langs": "bin/scmod-langs"
 	},
-	
+
 	"repository": {"type": "git", "url": "git://github.com/vflash/scmod.git"}
 }
 
