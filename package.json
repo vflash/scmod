@@ -2,7 +2,7 @@
 	"name" : "scmod",
 	"description": "client side javascript modules",
 	"keywords": ["javascript", "modules"],
-	"version": "0.2.31",
+	"version": "0.2.32",
 
 	"main" : "./index.js",
 
@@ -38,6 +38,7 @@
 		"lib/cmd-script_pack.js",
 		"lib/cmd-script_langs.js",
 		"lib/cmd-styles_pack.js",
+		"lib/cmd-modules.js",
 		"lib/file-load.js",
 		"lib/file-prox.js",
 		"lib/modscript.js",
