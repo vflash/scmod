@@ -24,26 +24,26 @@ web сервис для написания javascript кода в модульн
 пример модуля - http://zzreader.com/src/cmps/cmps.moon_frame.json
 ```js
 {
-	"modules": {
-		"core": "../core/core.json",
-		"cram": "./lib.cram.json",
-		"xhr_send": "../core/xhr_send.json",
-		"_zmenu": "./cmps.zmenu.json",
+    "modules": {
+        "core": "../core/core.json",
+        "cram": "./lib.cram.json",
+        "xhr_send": "../core/xhr_send.json",
+        "_zmenu": "./cmps.zmenu.json",
 
 
-		"elems": "global:elems",
-		"tmpl": "global:tmpl"
-		
-	},
-	
-	"styles": [
-		"./cmps.moon_frame.css"
-	],
+        "elems": "global:elems",
+        "tmpl": "global:tmpl"
+        
+    },
+    
+    "styles": [
+        "./cmps.moon_frame.css"
+    ],
 
-	"scripts": [
-		"./cmps.moon_frame.tmpl.js",
-		"./cmps.moon_frame.js"
-	]
+    "scripts": [
+        "./cmps.moon_frame.tmpl.js",
+        "./cmps.moon_frame.js"
+    ]
 }
 ```
 
@@ -74,7 +74,7 @@ web сервис для написания javascript кода в модульн
 переменные модулей указанных в разделе "modules"
 ```js
 __MODULE(2, function(global,module,core,cram,xhr_send,elems,tmpl){'use strict';
-	... код js файла ...
+    ... код js файла ...
 return [global,module,core,cram,xhr_send,elems,tmpl]});
 ```
 в каждом js-файле будет обьявлена переменная **"module"**, (var module = {}). 
@@ -86,16 +86,16 @@ return [global,module,core,cram,xhr_send,elems,tmpl]});
 **свойство "alias"** - изменяет имя переменной "module"
 ```js
 {
-	"alias": "feed",
-	...
+    "alias": "feed",
+    ...
 }
 ```
 
 ```js
 __MODULE(2, function(global,feed,...
-	... код js файла ...
+    ... код js файла ...
 
-	return [global,feed,... ];
+    return [global,feed,... ];
 });
 ```
 
@@ -104,11 +104,11 @@ __MODULE(2, function(global,feed,...
 js-файлы будут подключенны без изменений как они есть.
 ```js
 {
-	"nowrap": true,
-	"scripts": [
-		, "... "
-	],
-	...
+    "nowrap": true,
+    "scripts": [
+        , "... "
+    ],
+    ...
 }
 ```
 
@@ -117,32 +117,32 @@ js-файлы будут подключенны без изменений как
 заменяются только значения в двойных кавычках
 ```js
 {
-	... ,
+    ... ,
 
-	"langs": {
-		"текст который требует перевода": {
-			"ru": "текст перевода",
-			"en": "the translation",
-			"vn": "bản dịch",
-			....
-		},
-		......
-	}
+    "langs": {
+        "текст который требует перевода": {
+            "ru": "текст перевода",
+            "en": "the translation",
+            "vn": "bản dịch",
+            ....
+        },
+        ......
+    }
 }
 ```
 
 **свойство "autokye"** - префикс для перевода в "ключи-локализации"
 ```js
 {
-	"autokey": "mypage" ,
+    "autokey": "mypage" ,
 
-	"langs": {
-		"текст который требует перевода": {
-			"key": ".textTranslation",
-			....
-		},
-		......
-	}
+    "langs": {
+        "текст который требует перевода": {
+            "key": ".textTranslation",
+            ....
+        },
+        ......
+    }
 }
 ```
 
@@ -153,12 +153,12 @@ js-файлы будут подключенны без изменений как
 по таблице можно поменять одни адреса другими. К примеру глобальный на локальные
 ```js
 {
-	... ,
+    ... ,
 
-	"replace": {
-		"http://aaaaa.aa/xxxx.json": "./deps/aaaaa/xxxx.json",
-		......
-	}
+    "replace": {
+        "http://aaaaa.aa/xxxx.json": "./deps/aaaaa/xxxx.json",
+        ......
+    }
 }
 ```
 
@@ -175,22 +175,22 @@ js-файлы будут подключенны без изменений как
 
 пример - http://scmod.vflash.ru/sandbox?src=http://zzreader.com/src/zzreader/feedreader.json
 
-	- src - абсолютный путь до корневого модуля. 
-	- auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
-	- rep - разрешает подмену адрисов. значение true|false|url
-	- core - адрес ядра, все модули ядра будут исключены из сборки. значение [url]
+    - src - абсолютный путь до корневого модуля. 
+    - auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
+    - rep - разрешает подмену адрисов. значение true|false|url
+    - core - адрес ядра, все модули ядра будут исключены из сборки. значение [url]
 
 пример применения
 ```html
 <html>
-	<head>
-		<script src="http://scmod.vflash.ru/sandbox?src=http://zzreader.com/src/zzreader/feedreader.json"></script>
-		<noscript>
-			<link rel="stylesheet" href="http://scmod.vflash.ru/sandbox_styles?src=http://zzreader.com/src/zzreader/feedreader.json" type="text/css" />
-		</noscript>
+    <head>
+        <script src="http://scmod.vflash.ru/sandbox?src=http://zzreader.com/src/zzreader/feedreader.json"></script>
+        <noscript>
+            <link rel="stylesheet" href="http://scmod.vflash.ru/sandbox_styles?src=http://zzreader.com/src/zzreader/feedreader.json" type="text/css" />
+        </noscript>
 
-	</head>
-	<body> ... </body>
+    </head>
+    <body> ... </body>
 </html>
 
 ```
@@ -199,16 +199,16 @@ js-файлы будут подключенны без изменений как
 
 пример - http://scmod.vflash.ru/langs?for=en,de&src=http://zzreader.com/src/zzreader/feedreader.json
 
-	- src - абсолютный путь до корневого модуля. 
-	- auth=base - если требуется http-authentication. логин и пароль передается только доменаям указанным в настройках сервера
-	- for - указанные через через запятую языки для которых нужно искать перевод
-	- rep - разрешает подмену адресов. значение [true|false|url]
-	- core - адрес ядра, все модули ядра будут исключены из сборки. значение [url]
-	- autokey - включает вид полного ключа-локализации
-	- pure - не отображает протухшие значения
-	- all - выводит значения всех модулей
-	- all=ru - выводит с фильтром кирилицы
-	- yaml - вывод в формате yaml
+    - src - абсолютный путь до корневого модуля. 
+    - auth=base - если требуется http-authentication. логин и пароль передается только доменаям указанным в настройках сервера
+    - for - указанные через через запятую языки для которых нужно искать перевод
+    - rep - разрешает подмену адресов. значение [true|false|url]
+    - core - адрес ядра, все модули ядра будут исключены из сборки. значение [url]
+    - autokey - включает вид полного ключа-локализации
+    - pure - не отображает протухшие значения
+    - all - выводит значения всех модулей
+    - all=ru - выводит с фильтром кирилицы
+    - yaml - вывод в формате yaml
 
 
 
@@ -218,23 +218,23 @@ js-файлы будут подключенны без изменений как
 **метод /scripts** - обьединяет все js-файлы в один
 
 пример - http://scmod.vflash.ru/scripts?lang=en&src=http://zzreader.com/src/zzreader/feedreader.json
-	
-	- src - абсолютный путь до корневого модуля. 
-	- auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
-	- lang - все текстовые значения в js файлах обрамленные в "двойные кавычки" будут заменены на соответствующие указанные с свойстве модуля "langs"
-	- rep - разрешает подмену адресов. значение [true|false|url]
-	- core - адрес ядра, все модули ядра будут исключены из сборки. значение [url]
+    
+    - src - абсолютный путь до корневого модуля. 
+    - auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
+    - lang - все текстовые значения в js файлах обрамленные в "двойные кавычки" будут заменены на соответствующие указанные с свойстве модуля "langs"
+    - rep - разрешает подмену адресов. значение [true|false|url]
+    - core - адрес ядра, все модули ядра будут исключены из сборки. значение [url]
 
 
 **метод /styles** - обьединяет все css-файлы в один
 
 пример - http://scmod.vflash.ru/styles?src=http://zzreader.com/src/zzreader/feedreader.json
 
-	- src - абсолютный путь до корневого модуля. 
-	- auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
-	- min=false - чтобы отключить минификатор css 
-	- rep - разрешает подмену адресов. значение [true|false|url]
-	- core - адрес ядра, все модули ядра будут исключены из сборки. значение [url]
+    - src - абсолютный путь до корневого модуля. 
+    - auth=base - если требуется http-authentication. логин и пароль передается только указанные в настройках сервера
+    - min=false - чтобы отключить минификатор css 
+    - rep - разрешает подмену адресов. значение [true|false|url]
+    - core - адрес ядра, все модули ядра будут исключены из сборки. значение [url]
 
 
 
