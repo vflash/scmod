@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+
+process.argv.push('-cmd=modules');
+require('../lib/console.js')
