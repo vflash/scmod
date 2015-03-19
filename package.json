@@ -24,6 +24,7 @@
         "README.md",
         "scmod.conf",
 
+        "bin/scmod-modules",
         "bin/scmod-scripts",
         "bin/scmod-styles",
         "bin/scmod-langs",
