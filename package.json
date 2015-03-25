@@ -1,36 +1,36 @@
 {
-    "name" : "scmod",
+    "name": "scmod",
     "description": "client side javascript modules",
-    "keywords": ["javascript", "modules"],
+    "keywords": [
+        "javascript",
+        "modules"
+    ],
     "version": "0.3.1",
-
-    "main" : "./index.js",
-
+    "main": "./index.js",
     "homepage": "https://github.com/vflash/scmod",
     "bugs": {
         "url": "https://github.com/vflash/scmod/issues"
     },
-
-    "author":{
-        "name" : "Vopilovskiy Konstantin",
-        "email" : "flash.vkv@gmail.com",
-        "url" : "http://vflash.ru"
+    "author": {
+        "name": "Vopilovskiy Konstantin",
+        "email": "flash.vkv@gmail.com",
+        "url": "http://vflash.ru"
     },
-
-    "dependencies": ["js-json", "http-xak", "js-yaml"],
-
-    "files":[
+    "dependencies": {
+        "0": "js-json",
+        "1": "http-xak",
+        "2": "js-yaml"
+    },
+    "files": [
         "LICENSE",
         "README.md",
         "scmod.conf",
-
         "bin/scmod-modules",
         "bin/scmod-scripts",
         "bin/scmod-styles",
         "bin/scmod-langs",
-        "index.js", "modules.js",
+        "index.js",
         "config-sample.js",
-
         "lib/server.js",
         "lib/console.js",
         "lib/load-replace.js",
@@ -48,14 +48,14 @@
         "lib/tools.js",
         "lib/jsmin.js"
     ],
-
     "bin": {
         "scmod-modules": "bin/scmod-modules",
         "scmod-scripts": "bin/scmod-scripts",
         "scmod-styles": "bin/scmod-styles",
         "scmod-langs": "bin/scmod-langs"
     },
-
-    "repository": {"type": "git", "url": "git://github.com/vflash/scmod.git"}
+    "repository": {
+        "type": "git",
+        "url": "git://github.com/vflash/scmod.git"
+    }
 }
-
