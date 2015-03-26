@@ -36,7 +36,6 @@
         "lib/load-replace.js",
         "lib/load-config.js",
         "lib/load.js",
-        "lib/prox.js",
         "lib/file-cache.js",
         "lib/file-result.js",
         "lib/cmd-sandbox.js",
