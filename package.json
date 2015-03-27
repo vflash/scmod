@@ -16,11 +16,9 @@
         "email": "flash.vkv@gmail.com",
         "url": "http://vflash.ru"
     },
-    "dependencies": {
-        "0": "js-json",
-        "1": "http-xak",
-        "2": "js-yaml"
-    },
+
+    "dependencies": ["js-json", "http-xak", "js-yaml", "node-sass"],
+
     "files": [
         "LICENSE",
         "README.md",
