@@ -17,7 +17,7 @@
         "url": "http://vflash.ru"
     },
 
-    "dependencies": ["js-json", "http-xak", "js-yaml", "node-sass"],
+    "dependencies": ["js-json", "http-xak", "js-yaml"],
 
     "files": [
         "LICENSE",
