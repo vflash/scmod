@@ -27,10 +27,9 @@
         "LICENSE",
         "README.md",
         "scmod.conf",
-        "bin/scmod-modules",
         "bin/scmod-scripts",
         "bin/scmod-styles",
-        "bin/scmod-langs",
+        "bin/scmod",
         "index.js",
         "config-sample.js",
         "lib/server.js",
@@ -47,15 +46,15 @@
         "lib/cmd-script_langs.js",
         "lib/cmd-styles_pack.js",
         "lib/cmd-modules.js",
+        "lib/cmd-css.js",
         "lib/modscript.js",
         "lib/tools.js",
         "lib/jsmin.js"
     ],
     "bin": {
-        "scmod-modules": "bin/scmod-modules",
         "scmod-scripts": "bin/scmod-scripts",
         "scmod-styles": "bin/scmod-styles",
-        "scmod-langs": "bin/scmod-langs"
+        "scmod": "bin/scmod"
     },
     "repository": {
         "type": "git",

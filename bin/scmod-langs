@@ -1,4 +1,0 @@
-#!/usr/bin/env node
-
-process.argv.push('-cmd=langs');
-require('../lib/console.js')
